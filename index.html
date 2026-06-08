@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Naprendszer Szimuláció és Adattár</title>
+  <meta name="description" content="Interaktív, 2D/3D hatású Naprendszer szimuláció részletes fizikai adatokkal és érdekességekkel minden bolygóról magyar nyelven.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Csillagos háttér -->
+  <div class="space-background"></div>
+  <div class="stars"></div>
+
+  <div class="app-container">
+    <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeAllSidebars()"></div>
+    
+    <!-- Felső Fejléc -->
+
+
+    <!-- Bal Oldalsó Bolygólista Panel -->
+    <aside class="sidebar sidebar-left" id="list-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-header-row">
+          <h2 class="sidebar-title">A NAPRENDSZERÜNK</h2>
+          <button class="btn-close-sidebar" onclick="closeAllSidebars()" aria-label="Bezárás">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <p class="sidebar-desc">Fizika projektfeladat - Farkas Zsombor, Zachar Nándor</p>
+      </div>
+      <div class="planet-list" id="planets-container">
+        <!-- JS tölti fel -->
+      </div>
+    </aside>
+
+    <!-- Középső Canvas Terület -->
+    <main class="canvas-wrapper">
+      <canvas id="simulationCanvas"></canvas>
+      
+      <!-- Lebegő vezérlőpult a szimuláció alján -->
+      <div class="canvas-floating-controls">
+        <!-- Lejátszás / Szünet -->
+        <div class="control-group">
+          <button class="btn" id="btn-play" onclick="togglePlay()" title="Szimuláció lejátszása/szüneteltetése">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="4" width="4" height="16"></rect>
+              <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+            Szünet
+          </button>
+        </div>
+        
+        <div class="control-divider"></div>
+
+        <!-- Nézet módok -->
+        <div class="control-group view-presets">
+          <button class="btn-preset" id="btn-view-3d" onclick="changeViewMode('3d')" title="3D Perspektívikus Nézet">3D</button>
+          <button class="btn-preset active" id="btn-view-2d" onclick="changeViewMode('2d')" title="2D Felülnézet">2D</button>
+        </div>
+        
+        <div class="control-divider"></div>
+        
+        <!-- Sebesség Csúszka -->
+        <div class="control-group slider-container">
+          <div class="slider-label">
+            <span>Idősebesség</span>
+            <span id="speed-multiplier">1.0x</span>
+          </div>
+          <input type="range" class="slider" id="speed-slider" min="0" max="10" step="0.2" value="1" oninput="updateSpeed(this.value)">
+        </div>
+        
+        <div class="control-divider"></div>
+        
+        <!-- Megjelenítési beállítások -->
+        <div class="control-group">
+          <label class="toggle-label active" title="Pályavonalak megjelenítése">
+            <input type="checkbox" class="toggle-checkbox" id="toggle-orbits" checked onchange="toggleOrbits(this.checked); this.parentElement.classList.toggle('active', this.checked)">
+            <div class="toggle-switch"></div>
+            <span>Pályák</span>
+          </label>
+          
+          <label class="toggle-label" title="Bolygónevek megjelenítése">
+            <input type="checkbox" class="toggle-checkbox" id="toggle-labels" onchange="toggleLabels(this.checked); this.parentElement.classList.toggle('active', this.checked)">
+            <div class="toggle-switch"></div>
+            <span>Nevek</span>
+          </label>
+        </div>
+        
+      </div>
+      
+      <!-- Mobil gyorsgombok oldalsávok nyitásához -->
+      <button class="mobile-sidebar-toggle" id="btn-open-list">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+        A Naprendszerünk
+      </button>
+      <button class="mobile-sidebar-toggle" id="btn-open-info">
+        Adatlap
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+      </button>
+    </main>
+
+    <!-- Jobb Oldalsó Részletes Adatlap Panel -->
+    <aside class="sidebar sidebar-right" id="info-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-header-row">
+          <h2 class="sidebar-title">Adatlap</h2>
+          <button class="btn-close-sidebar" onclick="closeAllSidebars()" aria-label="Bezárás">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      </div>
+      
+      <div class="sidebar-body">
+        <!-- Alapállapot üdvözlőszövege -->
+        <div class="welcome-panel" id="welcome-panel">
+          <div class="welcome-icon">🪐</div>
+          <h3 class="welcome-title">Naprendszer Szimuláció</h3>
+          <p class="welcome-text">Válassz ki egy objektumot a Naprendszerünkből a bal oldali listából vagy kattints rá közvetlenül a szimulációban az adatok megtekintéséhez!</p>
+        </div>
+        
+        <!-- Dinamikus Bolygó Bemutató -->
+        <div class="planet-presenter" id="planet-presenter" style="display: none;">
+          
+          <!-- Grafikus Bolygó Kép -->
+          <div class="planet-visual-showcase">
+            <img class="planet-real-image" id="planet-real-img" src="" alt="">
+          </div>
+          
+          <!-- Bolygó Címe -->
+          <div class="planet-info-header">
+            <h3 class="planet-title-name" id="planet-title">Föld</h3>
+            <p class="planet-subtitle" id="planet-subtitle">Kőzetbolygó • 1 hold</p>
+          </div>
+          
+          <!-- Csak az Adatok táblázat jelenik meg -->
+          <div class="planet-stats-container">
+            <div class="stats-grid" id="planet-stats-grid">
+              <!-- JS tölti fel -->
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Szkriptek betöltése -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="data.js"></script>
+  <script src="simulation.js"></script>
+  <script>
+    // Fő UI szkript, ami összeköti az adatokat a felülettel
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Bolygólista legenerálása a bal oldalsávban
+      renderPlanetList();
+      
+      // 2. Szimuláció elindítása
+      initSimulation();
+      
+      // 3. Alapértelmezett kiválasztás: A Nap
+      selectPlanet("sun");
+      
+      // 4. Mobil nézeti kezelők
+      setupMobileNavigation();
+    });
+
+    // Bal oldali bolygólista renderelése
+    function renderPlanetList() {
+      const container = document.getElementById("planets-container");
+      container.innerHTML = "";
+      
+      planetsData.forEach(planet => {
+        const item = document.createElement("div");
+        item.className = "planet-item";
+        item.dataset.id = planet.id;
+        
+        // Holdak szövegének megfogalmazása
+        let moonText = "";
+        if (planet.id === "sun") {
+          moonText = "Csillag";
+        } else {
+          moonText = planet.moonsCount > 0 ? `${planet.moonsCount} hold` : "nincs hold";
+        }
+        
+        // Bolygó típus megállapítása
+        let typeText = "Törpebolygó";
+        if (planet.id === "sun") {
+          typeText = "Csillag";
+        } else if (planet.id === "mercury" || planet.id === "venus" || planet.id === "earth" || planet.id === "mars") {
+          typeText = "Kőzetbolygó";
+        } else if (planet.id === "jupiter" || planet.id === "saturn") {
+          typeText = "Gázóriás";
+        } else if (planet.id === "uranus" || planet.id === "neptune") {
+          typeText = "Jégóriás";
+        }
+
+        item.innerHTML = `
+          <div class="planet-item-left">
+            <div class="planet-color-dot" style="color: ${planet.color}; background-color: ${planet.color}"></div>
+            <div>
+              <div class="planet-item-name">${planet.name}</div>
+              <div class="planet-item-type">${typeText}</div>
+            </div>
+          </div>
+          <div class="planet-item-moons">${moonText}</div>
+        `;
+        
+        item.addEventListener("click", () => {
+          selectPlanet(planet.id);
+        });
+        
+        container.appendChild(item);
+      });
+    }
+
+    const realPlanetImages = {
+      sun: "https://upload.wikimedia.org/wikipedia/commons/b/b4/The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg",
+      mercury: "https://upload.wikimedia.org/wikipedia/commons/4/4a/Mercury_in_true_color.jpg",
+      venus: "https://upload.wikimedia.org/wikipedia/commons/e/e5/Venus-real_color.jpg",
+      earth: "https://upload.wikimedia.org/wikipedia/commons/9/97/The_Earth_seen_from_Apollo_17.jpg",
+      mars: "https://upload.wikimedia.org/wikipedia/commons/0/02/OSIRIS_Mars_true_color.jpg",
+      jupiter: "https://upload.wikimedia.org/wikipedia/commons/c/c1/Jupiter_New_Horizons.jpg",
+      saturn: "https://upload.wikimedia.org/wikipedia/commons/c/c7/Saturn_during_Equinox.jpg",
+      uranus: "https://upload.wikimedia.org/wikipedia/commons/3/3d/Uranus2.jpg",
+      neptune: "https://upload.wikimedia.org/wikipedia/commons/5/56/Neptune_Full.jpg",
+      pluto: "https://upload.wikimedia.org/wikipedia/commons/e/ef/Pluto_in_True_Color_-_High-Res.jpg"
+    };
+
+    // Jobb oldali adatlap frissítése a kiválasztott égitest alapján
+    function updateSidebarInfo(planet) {
+      // Megjelenítjük a panelt, elrejtjük az üdvözlőt
+      document.getElementById("welcome-panel").style.display = "none";
+      document.getElementById("planet-presenter").style.display = "flex";
+      
+      // 1. Bolygó vizuális képének frissítése (valós fotó, bevilágított kör alak)
+      const img = document.getElementById("planet-real-img");
+      if (img) {
+        img.src = realPlanetImages[planet.id];
+        img.alt = planet.name;
+        img.className = `planet-real-image ${planet.id}`;
+        img.style.setProperty("--glow-color", planet.glowColor);
+      }
+      
+      // 2. Szövegek (Cím és Alcím)
+      document.getElementById("planet-title").innerText = planet.name;
+      
+      let subtitle = "";
+      if (planet.id === "sun") {
+        subtitle = "A Naprendszerünk központi csillaga";
+      } else {
+        let type = "Kőzetbolygó";
+        if (planet.id === "jupiter" || planet.id === "saturn") type = "Gázóriás";
+        if (planet.id === "uranus" || planet.id === "neptune") type = "Jégóriás";
+        if (planet.id === "pluto") type = "Törpebolygó";
+        
+        subtitle = `${type} • ${planet.moonsCount > 0 ? planet.moonsCount + ' hold' : 'nincs holdja'}`;
+      }
+      document.getElementById("planet-subtitle").innerText = subtitle;
+      
+      // 3. Statisztikák táblázat feltöltése (csak ez maradt meg az almenük helyett)
+      const statsGrid = document.getElementById("planet-stats-grid");
+      statsGrid.innerHTML = "";
+      for (const [key, value] of Object.entries(planet.details.stats)) {
+        const row = document.createElement("div");
+        row.className = "stat-row";
+        row.innerHTML = `
+          <span class="stat-label">${key}</span>
+          <span class="stat-value">${value}</span>
+        `;
+        statsGrid.appendChild(row);
+      }
+    }
+
+    function closeAllSidebars() {
+      document.getElementById("list-sidebar").classList.remove("mobile-open");
+      document.getElementById("info-sidebar").classList.remove("mobile-open");
+      document.getElementById("sidebar-backdrop").classList.remove("active");
+    }
+
+    // Mobil navigáció gombjai és swipe logikája
+    function setupMobileNavigation() {
+      const listSidebar = document.getElementById("list-sidebar");
+      const infoSidebar = document.getElementById("info-sidebar");
+      const btnOpenList = document.getElementById("btn-open-list");
+      const btnOpenInfo = document.getElementById("btn-open-info");
+      const backdrop = document.getElementById("sidebar-backdrop");
+      
+      btnOpenList.addEventListener("click", (e) => {
+        e.stopPropagation();
+        listSidebar.classList.toggle("mobile-open");
+        infoSidebar.classList.remove("mobile-open");
+        if (listSidebar.classList.contains("mobile-open")) {
+          backdrop.classList.add("active");
+        } else {
+          backdrop.classList.remove("active");
+        }
+      });
+      
+      btnOpenInfo.addEventListener("click", (e) => {
+        e.stopPropagation();
+        infoSidebar.classList.toggle("mobile-open");
+        listSidebar.classList.remove("mobile-open");
+        if (infoSidebar.classList.contains("mobile-open")) {
+          backdrop.classList.add("active");
+        } else {
+          backdrop.classList.remove("active");
+        }
+      });
+      
+      // Kattintás a canvas-ra bezárja a nyitott mobil paneleket
+      document.getElementById("simulationCanvas").addEventListener("click", () => {
+        closeAllSidebars();
+      });
+    }
+  </script>
+</body>
+</html>
