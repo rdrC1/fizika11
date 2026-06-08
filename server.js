@@ -22,8 +22,8 @@ const server = http.createServer((req, res) => {
   // Naplózzuk a kéréseket, így pm2 logs segítségével könnyen debugolható a forgalom
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
 
-  // Biztonsági szűrés: ne lehessen könyvtárból kilépni (directory traversal)
-  let safeUrl = path.normalize(req.url).replace(/^(\.\.[\/\\])+/, '');
+  const parsedUrl = new URL(req.url, 'http://localhost');
+  let safeUrl = path.normalize(parsedUrl.pathname).replace(/^(\.\.[\/\\])+/, '');
   if (safeUrl === '\\' || safeUrl === '/') {
     safeUrl = '/index.html';
   }

@@ -10,6 +10,7 @@ const planetsData = [
     realDistance: 0,
     speed: 0,
     moonsCount: 0,
+    type: "Csillag",
     details: {
       summary: "A Naprendszer központi csillaga, egy sárga törpe. A teljes rendszer tömegének 99,86%-át teszi ki. Plazmából áll, és a magjában zajló magfúzió révén hatalmas mennyiségű energiát termel, amely fény és hő formájában sugárzik az űrbe, biztosítva a földi élet feltételeit.",
       facts: [
@@ -40,6 +41,7 @@ const planetsData = [
     realDistance: 57.9,
     speed: 0.04,
     moonsCount: 0,
+    type: "Kőzetbolygó",
     details: {
       summary: "A legkisebb és a Naphoz legközelebb keringő bolygó a Naprendszerben. Mivel nem rendelkezik érdemi légkörrel, amely megtartaná a hőt, a felszíni hőmérséklet drasztikusan ingadozik a nappali perzselő forróság és az éjszakai fagy között. Felszíne erősen kráteres, nagyon hasonlít a Holdunkra.",
       facts: [
@@ -70,6 +72,7 @@ const planetsData = [
     realDistance: 108.2,
     speed: 0.015,
     moonsCount: 0,
+    type: "Kőzetbolygó",
     details: {
       summary: "Méretében és felépítésében a Föld 'ikertestvére', azonban a légköre pokoli körülményeket rejt. Rendkívül sűrű, főként szén-dioxidból álló légköre és kénsavfelhői brutális, elszabadult üvegházhatást okoznak, így ez a Naprendszer legforróbb bolygója.",
       facts: [
@@ -100,6 +103,7 @@ const planetsData = [
     realDistance: 149.6,
     speed: 0.01,
     moonsCount: 1,
+    type: "Kőzetbolygó",
     details: {
       summary: "Az otthonunk, és jelenleg az egyetlen ismert égitest a világegyetemben, amelyen kialakult az élet. Felszínének kb. 71%-át folyékony víz borítja (világóceán). Kedvező elhelyezkedése a Nap lakhatósági zónájában, aktív mágneses mezeje és a nitrogén-oxigén alapú légkör teszi lehetővé a komplex bioszféra fennmaradását.",
       facts: [
@@ -130,6 +134,7 @@ const planetsData = [
     realDistance: 227.9,
     speed: 0.008,
     moonsCount: 2,
+    type: "Kőzetbolygó",
     details: {
       summary: "A 'Vörös Bolygóként' is emlegetett égitest a felszínét borító vas-oxid (rozsda) miatt kapta jellegzetes színét. Ritka, főként szén-dioxidból álló légköre van. Felszínén hatalmas kialudt vulkánok, mély kanyonok és pólusain fagyott vízből és szén-dioxidból álló jégsapkák találhatóak.",
       facts: [
@@ -160,6 +165,7 @@ const planetsData = [
     realDistance: 778.5,
     speed: 0.003,
     moonsCount: 95,
+    type: "Gázóriás",
     details: {
       summary: "A Naprendszer legnagyobb bolygója, egy hatalmas gázóriás, amely főleg hidrogénből és héliumból épül fel. Nincs szilárd felszíne. Brutális gravitációs mezeje védőpajzsként működik a belső kőzetbolygók számára, mivel magához vonzza vagy eltéríti az üstökösöket. Legismertebb jellegzetessége a Nagy Vörös Folt nevű óriásvihar.",
       facts: [
@@ -191,6 +197,7 @@ const planetsData = [
     speed: 0.002,
     moonsCount: 146,
     hasRings: true,
+    type: "Gázóriás",
     details: {
       summary: "A második legnagyobb bolygó, egy látványos gyűrűrendszerrel rendelkező gázóriás. A gyűrűk jégdarabokból, porszemekből és sziklákból állnak, amelyek a mikroszkopikustól a ház méretűig terjednek. A Szaturnusz sűrűsége a legkisebb a bolygók között; alacsonyabb, mint a vízé, így elméletileg lebegne egy óriási kádban.",
       facts: [
@@ -221,6 +228,7 @@ const planetsData = [
     realDistance: 2872.5,
     speed: 0.0009,
     moonsCount: 28,
+    type: "Jégóriás",
     details: {
       summary: "Egy jégóriás, amelynek légkörében lévő metángáz gyönyörű kékeszöld színt kölcsönöz. Legfőbb sajátossága, hogy a forgástengelye szinte teljesen a pályasíkjában fekszik (98 fokos dőlésszög), vagyis a bolygó gyakorlatilag 'az oldalán gördül' a Nap körül, ami extrém, évtizedekig tartó évszakokat okoz.",
       facts: [
@@ -251,6 +259,7 @@ const planetsData = [
     realDistance: 4495.1,
     speed: 0.0006,
     moonsCount: 16,
+    type: "Jégóriás",
     details: {
       summary: "A Naptól legmesszebb keringő, csodálatos mélykék színű jégóriás. A Naprendszer leghevesebb szelei itt fújnak, elérve a hangsebességnél is nagyobb sebességet. Távolsága miatt szabad szemmel láthatatlan; ez az egyetlen bolygó, amelyet először matematikai számításokkal jósoltak meg, és csak azután fedeztek fel távcsővel.",
       facts: [
@@ -281,6 +290,7 @@ const planetsData = [
     realDistance: 5906.4,
     speed: 0.0004,
     moonsCount: 5,
+    type: "Törpebolygó",
     details: {
       summary: "Sokáig a Naprendszer kilencedik bolygójaként tartották számon, ám 2006-ban a Nemzetközi Csillagászati Unió (IAU) törpebolygóvá minősítette át. Főleg kőzetből és jégből álló fagyott világ. A New Horizons űrszonda 2015-ös elrepülése során feltárta, hogy a Plútó meglepően aktív égitest, hatalmas szív alakú síksággal a felszínén.",
       facts: [
