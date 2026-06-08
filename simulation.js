@@ -14,8 +14,6 @@ let showLabels = false;
 let selectedPlanet = null;
 let currentViewMode = "2d"; // "2d" vagy "3d" (a 2D az alapértelmezett)
 let isStartupAnimating = true;
-let isFollowingPlanet = false; // F16: Követő mód állapotjelzője
-let isUserInteracting = false;  // F16: Felhasználói interakció állapotjelzője
 
 // Cinematic Mód állapotváltozók
 let isCinematicMode = false;
@@ -65,10 +63,7 @@ function initSimulation() {
   scene = new THREE.Scene();
   
   // 2. Kamera beállítása (kezdetben nagyon közel a Naphoz felülnézetben)
-  const width = canvas.clientWidth || window.innerWidth || 800;
-  const height = canvas.clientHeight || window.innerHeight || 600;
-  const aspect = width / height;
-  camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 5000);
+  camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.1, 5000);
   camera.position.set(0, 60, 0.01);
   
   // 3. Renderelő beállítása (WebGL)
@@ -77,9 +72,9 @@ function initSimulation() {
     antialias: window.devicePixelRatio < 2, // Csak alacsony DPI-jű képernyőn élsimítás (GPU offloading)
     alpha: true,
     powerPreference: "high-performance",
-    precision: "highp" // F18: Visszaállítva highp-re a z-fighting és starfield villódzások ellen
+    precision: "mediump" // Mobil GPU terhelés csökkentése
   });
-  renderer.setSize(width, height);
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = false; // Kikapcsolva az felesleges árnyékgenerálás elkerülésére (hatalmas teljesítménylökés!)
   
@@ -90,19 +85,11 @@ function initSimulation() {
   controls.maxDistance = 1500;
   controls.minDistance = 20;
   
-  // F16/F13: Felfüggesztjük a követést, ha a felhasználó manuálisan hozzányúl a kamerához
-  controls.addEventListener("start", () => {
-    if (!isTransitioning && selectedPlanet && selectedPlanet.id !== "sun") {
-      isFollowingPlanet = false;
-    }
-  });
-  
   // Alapértelmezett 2D kamera-lezárások bekapcsolása indításkor
   lock2DControls();
   
   // 5. Fényforrások
   const sunLight = new THREE.PointLight(0xffffff, 2.2, 3000);
-  sunLight.decay = 1.0; // Lineárisabb lecsengés a külső bolygók sötétségének javítására
   scene.add(sunLight);
   
   const ambientLight = new THREE.AmbientLight(0x222233);
@@ -179,7 +166,7 @@ function generate3DStarfield() {
     vertexColors: true,
     transparent: true,
     opacity: 0.8,
-    sizeAttenuation: false // F23: Kikapcsolva, hogy ne növekedjenek óriásira a csillagok zoomoláskor
+    sizeAttenuation: true
   });
   
   starParticles = new THREE.Points(geometry, material);
@@ -227,8 +214,8 @@ function createTextSprite(text, color) {
   context.fillText(text.toUpperCase(), canvas.width / 2, canvas.height / 2);
   
   const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearMipmapLinearFilter; // F03: mipmappelés downscaling rángás ellen
-  texture.generateMipmaps = true;       // F03: mipmapek előállítása
+  texture.minFilter = THREE.LinearFilter; // WebGL optimalizáció: ne generáljon drága mipmapeket
+  texture.generateMipmaps = false;       // WebGL optimalizáció
   const material = new THREE.SpriteMaterial({ 
     map: texture,
     transparent: true,
@@ -238,114 +225,6 @@ function createTextSprite(text, color) {
   
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(36, 9, 1); // 1.5-szeres méretezés a 3D szcénában (korábban 24, 6)
-  return sprite;
-}
-
-// Szaturnusz Cassini-osztásos procedurális gyűrű textúra generálása
-function generateSaturnRingsTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 16;
-  const ctx = canvas.getContext('2d');
-  
-  for (let x = 0; x < 512; x++) {
-    const t = x / 512;
-    let r = 234, g = 210, b = 172; // Szép gyűrűs homok/bézs szín
-    let alpha = 0.8;
-    
-    if (t < 0.08) {
-      // C gyűrű belső sáv: nagyon halvány szürke/bézs
-      alpha = t * 3.0;
-    } else if (t >= 0.08 && t < 0.52) {
-      // B gyűrű: fényes, sűrűbb gyűrűrész
-      alpha = 0.85;
-      const stripe = Math.sin(t * 110) * 0.06 + Math.sin(t * 220) * 0.03;
-      alpha += stripe;
-    } else if (t >= 0.52 && t < 0.60) {
-      // Cassini-osztás: széles sötét üres rés
-      alpha = 0.04;
-    } else if (t >= 0.60 && t < 0.91) {
-      // A gyűrű: közepesen fényes külső sáv
-      alpha = 0.62;
-      const stripe = Math.sin(t * 150) * 0.05;
-      alpha += stripe;
-    } else if (t >= 0.91 && t < 0.94) {
-      // Encke-osztás: vékony sötét csík
-      alpha = 0.05;
-    } else {
-      // F gyűrű: nagyon vékony külső gyűrű
-      alpha = 0.45;
-    }
-    
-    alpha = Math.max(0.01, Math.min(0.92, alpha));
-    
-    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    ctx.fillRect(x, 0, 1, 16);
-  }
-  
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.ClampToEdgeWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  return texture;
-}
-
-// Uránusz vékony kékesszürke procedurális gyűrű textúra generálása
-function generateUranusRingsTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 16;
-  const ctx = canvas.getContext('2d');
-  
-  for (let x = 0; x < 256; x++) {
-    const t = x / 256;
-    let r = 170, g = 224, b = 236; // Kékesszürke
-    let alpha = 0.04;
-    
-    // Uránusz gyűrűi rendkívül vékonyak és elszórtak (pl. epsilon és társai)
-    if ((t > 0.12 && t < 0.16) || (t > 0.45 && t < 0.50) || (t > 0.82 && t < 0.88)) {
-      alpha = 0.38;
-    }
-    
-    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    ctx.fillRect(x, 0, 1, 16);
-  }
-  
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.ClampToEdgeWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  return texture;
-}
-
-// Napkorona fény sprite generálása a 3D Nap köré
-function createSunGlowSprite() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  
-  // Szép, selymes vöröses-narancsos-sárga színátmenet
-  const grad = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grad.addColorStop(0, 'rgba(255, 235, 170, 1.0)');
-  grad.addColorStop(0.15, 'rgba(255, 160, 50, 0.85)');
-  grad.addColorStop(0.45, 'rgba(255, 75, 0, 0.28)');
-  grad.addColorStop(1.0, 'rgba(255, 30, 0, 0.0)');
-  
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 256);
-  
-  const texture = new THREE.CanvasTexture(canvas);
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    color: 0xffffff,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false
-  });
-  
-  const sprite = new THREE.Sprite(material);
-  sprite.scale.set(92, 92, 1); // Ragyogási zóna átmérője
   return sprite;
 }
 
@@ -363,16 +242,14 @@ function buildCelestialBodies() {
     );
     
     // Szűrés finomítása a szép leképezéshez távolról is
-    texture.minFilter = THREE.LinearMipmapLinearFilter; // F02: Javítva a miniFilter typo
+    texture.miniFilter = THREE.LinearMipmapLinearFilter;
     
-    // 2. Anyagok (mindkét anyagot elkészítjük a 2D/3D smooth váltáshoz - F07)
-    let basicMaterial, standardMaterial;
+    // 2. Anyagok (csak egyetlen MeshStandardMaterial-t használunk, aminek az emissive értékét úsztatjuk)
+    let material;
     if (planet.id === "sun") {
-      basicMaterial = new THREE.MeshBasicMaterial({ map: texture });
-      standardMaterial = basicMaterial;
+      material = new THREE.MeshBasicMaterial({ map: texture });
     } else {
-      basicMaterial = new THREE.MeshBasicMaterial({ map: texture });
-      standardMaterial = new THREE.MeshStandardMaterial({
+      material = new THREE.MeshStandardMaterial({
         map: texture,
         emissiveMap: texture,
         emissive: new THREE.Color(0xffffff),
@@ -381,14 +258,13 @@ function buildCelestialBodies() {
         metalness: 0.0
       });
     }
-    const activeMaterial = currentViewMode === "2d" ? basicMaterial : standardMaterial;
     
     // 3. Geometria (gömb)
     const r = getRenderRadius3D(planet);
     const geometry = new THREE.SphereGeometry(r, 32, 32);
     
     // 4. Mesh létrehozása (a kezdeti nézetmódnak megfelelő anyaggal)
-    const mesh = new THREE.Mesh(geometry, activeMaterial);
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = planet.id !== "sun";
     mesh.receiveShadow = planet.id !== "sun";
     
@@ -416,25 +292,6 @@ function buildCelestialBodies() {
     
     scene.add(orbitGroup);
     
-    // Napkorona fény hozzáadása
-    let glowSprite = null;
-    if (planet.id === "sun") {
-      glowSprite = createSunGlowSprite();
-      glowSprite.material.opacity = currentViewMode === "2d" ? 0.0 : 1.0;
-      glowSprite.visible = currentViewMode !== "2d";
-      translationGroup.add(glowSprite);
-    }
-    
-    // 6. Szaturnusz és Uránusz gyűrűi
-    let ringMesh = null;
-    if (planet.hasRings) {
-      if (planet.id === "saturn") {
-        ringMesh = buildSaturnRings3D(pivot, r);
-      } else if (planet.id === "uranus") {
-        ringMesh = buildUranusRings3D(pivot, r);
-      }
-    }
-
     // Tároljuk az objektum referenciákat a frissítéshez és klikkdetektáláshoz
     planetMeshes[planet.id] = {
       mesh: mesh,
@@ -442,12 +299,19 @@ function buildCelestialBodies() {
       translationGroup: translationGroup,
       orbitGroup: orbitGroup,
       data: planet,
-      standardMaterial: standardMaterial,
-      basicMaterial: basicMaterial,
-      labelSprite: labelSprite, // Tároljuk a referenciát
-      ringMesh: ringMesh,       // Tároljuk a gyűrű háló referenciát
-      glowSprite: glowSprite     // Tároljuk a napkorona ragyogás referenciát
+      standardMaterial: material, // megmarad a névleges kompatibilitás
+      basicMaterial: material,
+      labelSprite: labelSprite // Tároljuk a referenciát
     };
+    
+    // 6. Szaturnusz és Uránusz gyűrűi
+    if (planet.hasRings) {
+      if (planet.id === "saturn") {
+        buildSaturnRings3D(pivot, r);
+      } else if (planet.id === "uranus") {
+        buildUranusRings3D(pivot, r);
+      }
+    }
     
     // 7. Pályavonal kirajzolása a 3D térben
     drawOrbitLine3D(planet);
@@ -459,6 +323,7 @@ function buildSaturnRings3D(parentPivot, planetRadius) {
   const innerR = planetRadius * 1.3;
   const outerR = planetRadius * 2.3;
   
+  // RingGeometry használata (sok szegmenssel a szép kör ívért)
   const ringGeo = new THREE.RingGeometry(innerR, outerR, 64);
   
   // UV koordináták igazítása, hogy a textúra sugarasan (radial) feszüljön rá
@@ -466,39 +331,24 @@ function buildSaturnRings3D(parentPivot, planetRadius) {
   const v3 = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     v3.fromBufferAttribute(pos, i);
-    const dist = v3.length();
-    const u = (dist - innerR) / (outerR - innerR);
-    ringGeo.attributes.uv.setXY(i, u, 0.5);
+    ringGeo.attributes.uv.setXY(i, v3.length() < (innerR + outerR) / 2 ? 0 : 1, 1);
   }
   
-  const ringTexture = generateSaturnRingsTexture();
-  
-  // F07: Alapanyag és standard anyag a 2D/3D smooth váltáshoz
-  const basicMaterial = new THREE.MeshBasicMaterial({
-    map: ringTexture,
-    side: THREE.DoubleSide,
-    transparent: true
-  });
-  
-  const standardMaterial = new THREE.MeshStandardMaterial({
-    map: ringTexture,
+  // Fél-transzparens gyűrű anyag
+  const ringMat = new THREE.MeshStandardMaterial({
+    color: 0xead2ac,
     side: THREE.DoubleSide,
     transparent: true,
-    roughness: 0.6,
-    emissiveMap: ringTexture,
-    emissive: new THREE.Color(0xffffff),
-    emissiveIntensity: currentViewMode === "2d" ? 1.0 : 0.0
+    opacity: 0.8,
+    roughness: 0.6
   });
   
-  const activeMaterial = currentViewMode === "2d" ? basicMaterial : standardMaterial;
-  const ringMesh = new THREE.Mesh(ringGeo, activeMaterial);
+  const ringMesh = new THREE.Mesh(ringGeo, ringMat);
   
   // A gyűrű síkja merőleges a bolygó tengelyére, így a Y tengelyre fektetjük (90 fokos forgatás X tengely körül)
   ringMesh.rotation.x = Math.PI / 2;
   
   parentPivot.add(ringMesh);
-  ringMesh.userData = { basicMaterial, standardMaterial };
-  return ringMesh;
 }
 
 // Uránusz gyűrű 3D modell (nagyon vékony, sötét gyűrűsáv)
@@ -507,42 +357,18 @@ function buildUranusRings3D(parentPivot, planetRadius) {
   const outerR = planetRadius * 1.55;
   
   const ringGeo = new THREE.RingGeometry(innerR, outerR, 64);
-  
-  const pos = ringGeo.attributes.position;
-  const v3 = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v3.fromBufferAttribute(pos, i);
-    const dist = v3.length();
-    const u = (dist - innerR) / (outerR - innerR);
-    ringGeo.attributes.uv.setXY(i, u, 0.5);
-  }
-  
-  const ringTexture = generateUranusRingsTexture();
-  
-  // F07: Alapanyag és standard anyag a 2D/3D smooth váltáshoz
-  const basicMaterial = new THREE.MeshBasicMaterial({
-    map: ringTexture,
-    side: THREE.DoubleSide,
-    transparent: true
-  });
-  
-  const standardMaterial = new THREE.MeshStandardMaterial({
-    map: ringTexture,
+  const ringMat = new THREE.MeshStandardMaterial({
+    color: 0xaae0ec,
     side: THREE.DoubleSide,
     transparent: true,
-    roughness: 0.9,
-    emissiveMap: ringTexture,
-    emissive: new THREE.Color(0xffffff),
-    emissiveIntensity: currentViewMode === "2d" ? 1.0 : 0.0
+    opacity: 0.35,
+    roughness: 0.9
   });
   
-  const activeMaterial = currentViewMode === "2d" ? basicMaterial : standardMaterial;
-  const ringMesh = new THREE.Mesh(ringGeo, activeMaterial);
+  const ringMesh = new THREE.Mesh(ringGeo, ringMat);
   ringMesh.rotation.x = Math.PI / 2;
   
   parentPivot.add(ringMesh);
-  ringMesh.userData = { basicMaterial, standardMaterial };
-  return ringMesh;
 }
 
 // 3D Pályavonal kirajzolása
@@ -618,8 +444,6 @@ function setup3DInputHandlers() {
   
   canvas.addEventListener("pointerdown", (e) => {
     if (isCinematicMode) {
-      e.stopPropagation(); // F26: Megakadályozza az esemény továbbterjedését OrbitControls felé
-      e.preventDefault();
       exitCinematicMode();
       return;
     }
@@ -646,21 +470,15 @@ function setup3DInputHandlers() {
       
       raycaster.setFromCamera(mouse, camera);
       
-      // Csak a bolygó hálók (meshes) és gyűrűk kattintását vizsgáljuk (F17)
-      const targets = [];
-      Object.values(planetMeshes).forEach(pm => {
-        targets.push(pm.mesh);
-        if (pm.ringMesh) {
-          targets.push(pm.ringMesh);
-        }
-      });
+      // Csak a bolygó hálók (meshes) kattintását vizsgáljuk
+      const targets = Object.values(planetMeshes).map(pm => pm.mesh);
       const intersects = raycaster.intersectObjects(targets);
       
       if (intersects.length > 0) {
-        const hitObj = intersects[0].object;
+        const hitMesh = intersects[0].object;
         
-        // Megkeressük, melyik bolygóhoz tartozik a mesh vagy a gyűrű
-        const hitEntry = Object.entries(planetMeshes).find(([id, pm]) => pm.mesh === hitObj || pm.ringMesh === hitObj);
+        // Megkeressük, melyik bolygóhoz tartozik a mesh
+        const hitEntry = Object.entries(planetMeshes).find(([id, pm]) => pm.mesh === hitMesh);
         if (hitEntry) {
           selectPlanet(hitEntry[0]);
         }
@@ -671,15 +489,10 @@ function setup3DInputHandlers() {
 
 // Fókuszált bolygó kiválasztása
 function selectPlanet(planetId) {
-  if (isCinematicMode && !window.isAutomaticTourChange) {
-    exitCinematicMode(planetId);
-    return;
-  }
   const planet = planetsData.find(p => p.id === planetId);
   if (!planet) return;
   
   selectedPlanet = planet;
-  isFollowingPlanet = (planetId !== "sun"); // F16: Bekapcsoljuk a követő módot kiválasztáskor
   
   // UI panelek frissítése a fő oldalon
   updateSidebarInfo(planet);
@@ -706,89 +519,9 @@ function selectPlanet(planetId) {
 }
 
 // Kameraváltások állapotváltozói (időalapú buttery smooth átmenet)
-function snapTransitionToEnd() {
-  if (!selectedPlanet) return;
-  const pm = planetMeshes[selectedPlanet.id];
-  const liveTargetPos = new THREE.Vector3();
-  if (pm) {
-    pm.mesh.getWorldPosition(liveTargetPos);
-  } else {
-    liveTargetPos.copy(endTarget);
-  }
-  
-  const finalOffset = new THREE.Vector3().setFromSpherical(endSpherical);
-  controls.target.copy(liveTargetPos);
-  camera.position.copy(liveTargetPos).add(finalOffset);
-  
-  if (isCinematicMode && camera.aspect < 1) {
-    const verticalOffset = new THREE.Vector3(0, -endSpherical.radius * 0.15, 0);
-    const lookTarget = controls.target.clone().add(verticalOffset);
-    camera.lookAt(lookTarget);
-  } else {
-    camera.lookAt(controls.target);
-  }
-  
-  Object.values(planetMeshes).forEach(pmItem => {
-    if (pmItem.data.id !== "sun") {
-      if (pmItem.mesh.material.emissiveIntensity !== undefined) {
-        pmItem.mesh.material.emissiveIntensity = endEmissive;
-      }
-      if (pmItem.ringMesh && pmItem.ringMesh.material.emissiveIntensity !== undefined) {
-        pmItem.ringMesh.material.emissiveIntensity = endEmissive;
-      }
-    }
-  });
-  
-  if (currentViewMode === "2d") {
-    Object.values(planetMeshes).forEach(pmItem => {
-      pmItem.mesh.material = pmItem.basicMaterial;
-      if (pmItem.ringMesh && pmItem.ringMesh.userData.basicMaterial) {
-        pmItem.ringMesh.material = pmItem.ringMesh.userData.basicMaterial;
-      }
-    });
-  }
-  
-  const sunPm = planetMeshes["sun"];
-  if (sunPm && sunPm.glowSprite) {
-    const finalGlowOpacity = endEmissive === 1.0 ? 0.0 : 1.0;
-    sunPm.glowSprite.material.opacity = finalGlowOpacity;
-    sunPm.glowSprite.visible = finalGlowOpacity > 0.01;
-  }
-  
-  orbitLines.forEach(container => {
-    const line = container.children[0];
-    if (line) {
-      line.material.opacity = endOrbitOpacity;
-      line.material.needsUpdate = true;
-    }
-  });
-  
-  if (currentViewMode === "2d") {
-    lock2DControls();
-  }
-  
-  if (!isCinematicMode) {
-    controls.enabled = true;
-    controls.update();
-  } else {
-    controls.enabled = false;
-  }
-}
-
-let _isTransitioning = false;
-Object.defineProperty(window, 'isTransitioning', {
-  get() { return _isTransitioning; },
-  set(val) {
-    if (_isTransitioning && !val) {
-      snapTransitionToEnd();
-    }
-    _isTransitioning = val;
-  },
-  configurable: true
-});
-
+let isTransitioning = false;
 let transitionStartTime = 0;
-const transitionDuration = 1200; // 1.2 másodperces gyorsabb, elegáns átmenet (F22)
+const transitionDuration = 2800; // 2.8 másodperces nagyon lassú, elegáns, moziszerű átmenet
 
 const startTarget = new THREE.Vector3();
 const endTarget = new THREE.Vector3();
@@ -884,22 +617,10 @@ function focusCameraOnSelected() {
   diffTheta = endSpherical.theta - startSpherical.theta;
   diffTheta = Math.atan2(Math.sin(diffTheta), Math.cos(diffTheta));
   
-  // F07: Ha 3D vagy Cinematic módba megyünk, azonnal átváltunk StandardAnyagra a fények érvényesüléséhez
-  if (currentViewMode === "3d" || isCinematicMode) {
-    Object.values(planetMeshes).forEach(pmItem => {
-      pmItem.mesh.material = pmItem.standardMaterial;
-      if (pmItem.ringMesh && pmItem.ringMesh.userData.standardMaterial) {
-        pmItem.ringMesh.material = pmItem.ringMesh.userData.standardMaterial;
-      }
-    });
-  }
-  
   // Kezdő emissive és pálya átlátszóság értékek lekérése
   // (mivel minden bolygó egyszerre változik, egy mintát veszünk)
   const samplePlanet = Object.values(planetMeshes).find(p => p.data.id !== "sun");
-  startEmissive = (samplePlanet && samplePlanet.mesh.material.emissiveIntensity !== undefined)
-    ? samplePlanet.mesh.material.emissiveIntensity 
-    : (currentViewMode === "2d" ? 1.0 : 0.0);
+  startEmissive = samplePlanet ? samplePlanet.mesh.material.emissiveIntensity : 0.0;
   
   const sampleOrbit = orbitLines[0]?.children[0];
   startOrbitOpacity = sampleOrbit ? sampleOrbit.material.opacity : 0.06;
@@ -928,24 +649,11 @@ function updateTransition() {
   const pm = planetMeshes[selectedPlanet.id];
   const liveTargetPos = new THREE.Vector3();
   if (pm) {
+    pm.mesh.updateMatrixWorld(true);
     pm.mesh.getWorldPosition(liveTargetPos);
   } else {
     liveTargetPos.copy(endTarget);
   }
-  
-  // F28: Pályára állításkor eltoljuk a célpontot ha a sidebarok nyitva vannak
-  let horizontalOffset = 0;
-  if (window.innerWidth <= 1024) {
-    const leftOpen = document.getElementById("list-sidebar").classList.contains("mobile-open");
-    const rightOpen = document.getElementById("info-sidebar").classList.contains("mobile-open");
-    if (leftOpen) {
-      horizontalOffset = 18;
-    } else if (rightOpen) {
-      horizontalOffset = -18;
-    }
-  }
-  const rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-  liveTargetPos.add(rightDir.multiplyScalar(horizontalOffset));
   
   // Gömbi koordináták lineáris interpolációja a rángásmentes fordulásért
   const currentRadius = startSpherical.radius + (endSpherical.radius - startSpherical.radius) * easeProgress;
@@ -974,26 +682,11 @@ function updateTransition() {
   const currentEmissive = startEmissive + (endEmissive - startEmissive) * easeProgress;
   Object.values(planetMeshes).forEach(pmItem => {
     if (pmItem.data.id !== "sun") {
-      if (pmItem.mesh.material.emissiveIntensity !== undefined) {
-        pmItem.mesh.material.emissiveIntensity = currentEmissive;
-      }
-      if (pmItem.ringMesh && pmItem.ringMesh.material.emissiveIntensity !== undefined) {
-        pmItem.ringMesh.material.emissiveIntensity = currentEmissive;
-      }
+      pmItem.mesh.material.emissiveIntensity = currentEmissive;
     }
   });
   
-  // 3. Napkorona ragyogás (Solar Corona Sprite) elúsztatása (2D-ben elhalványul, 3D-ben felerősödik)
-  const sunPm = planetMeshes["sun"];
-  if (sunPm && sunPm.glowSprite) {
-    const targetGlowOpacity = endEmissive === 1.0 ? 0.0 : 1.0;
-    const startGlowOpacity = startEmissive === 1.0 ? 0.0 : 1.0;
-    const currentGlowOpacity = startGlowOpacity + (targetGlowOpacity - startGlowOpacity) * easeProgress;
-    sunPm.glowSprite.material.opacity = currentGlowOpacity;
-    sunPm.glowSprite.visible = currentGlowOpacity > 0.01;
-  }
-  
-  // 4. Pályavonalak átlátszóságának elúsztatása
+  // 3. Pályavonalak átlátszóságának elúsztatása
   const currentOrbitOpacity = startOrbitOpacity + (endOrbitOpacity - startOrbitOpacity) * easeProgress;
   orbitLines.forEach(container => {
     const line = container.children[0];
@@ -1011,30 +704,9 @@ function updateTransition() {
     
     Object.values(planetMeshes).forEach(pmItem => {
       if (pmItem.data.id !== "sun") {
-        if (pmItem.mesh.material.emissiveIntensity !== undefined) {
-          pmItem.mesh.material.emissiveIntensity = endEmissive;
-        }
-        if (pmItem.ringMesh && pmItem.ringMesh.material.emissiveIntensity !== undefined) {
-          pmItem.ringMesh.material.emissiveIntensity = endEmissive;
-        }
+        pmItem.mesh.material.emissiveIntensity = endEmissive;
       }
     });
-    
-    // F07: Ha 2D-be váltottunk, a transition legvégén beállítjuk a MeshBasicMaterial-t
-    if (currentViewMode === "2d") {
-      Object.values(planetMeshes).forEach(pmItem => {
-        pmItem.mesh.material = pmItem.basicMaterial;
-        if (pmItem.ringMesh && pmItem.ringMesh.userData.basicMaterial) {
-          pmItem.ringMesh.material = pmItem.ringMesh.userData.basicMaterial;
-        }
-      });
-    }
-    
-    if (sunPm && sunPm.glowSprite) {
-      const finalGlowOpacity = endEmissive === 1.0 ? 0.0 : 1.0;
-      sunPm.glowSprite.material.opacity = finalGlowOpacity;
-      sunPm.glowSprite.visible = finalGlowOpacity > 0.01;
-    }
     
     orbitLines.forEach(container => {
       const line = container.children[0];
@@ -1074,6 +746,7 @@ function avoidPlanetCollisions() {
   const safeBuffer = 12; // biztonsági puffer távolság egységben
   
   Object.values(planetMeshes).forEach(pm => {
+    pm.mesh.updateMatrixWorld(true);
     const planetPos = new THREE.Vector3();
     pm.mesh.getWorldPosition(planetPos);
     
@@ -1085,7 +758,7 @@ function avoidPlanetCollisions() {
       // Kitoljuk a kamerát a bolygó felületén kívülre
       const dir = new THREE.Vector3().subVectors(camera.position, planetPos);
       
-      // Ha a kamera pontosan a bolygó középpontjában van (dist = 0), megadunk egy alapértelmezett irányt a NaN elkerülésére
+      // Ha a kamera pontosan a bolygó középpontjában van (dist = 0), megadunk egy alapértelmezmezett irányt a NaN elkerülésére
       if (dir.lengthSq() === 0) {
         dir.set(0, 1, 0);
       } else {
@@ -1104,8 +777,6 @@ function avoidPlanetCollisions() {
         camera.lookAt(controls.target);
       }
       
-      // F13: Frissítjük a controls-t az ütközés utáni új pozícióval a rángatózás elkerülésére
-      controls.update();
       forceRenderFrame = true;
     }
   });
@@ -1134,77 +805,36 @@ function loop3D(timestamp) {
     }
   }
   
-  // 1. Frissítjük az égitestek fizikai pozícióit/forgásait
-  if (!isPaused) {
-    update3D(dt);
-    needsRender = true;
-  }
-  
-  // 2. Globális világmátrix-frissítés eltávolítva (Three.js automatikusan elvégzi, elkerülve a felesleges CPU overhead-et - F31)
-  
-  // 3. Fókuszált bolygó követése a kamerával (ha épp nincs folyamatban aktív átmenet és a követés be van kapcsolva - F16/F28)
-  if (selectedPlanet && selectedPlanet.id !== "sun" && !isTransitioning && isFollowingPlanet) {
-    const pm = planetMeshes[selectedPlanet.id];
-    if (pm) {
-      const currentWorldPos = new THREE.Vector3();
-      pm.mesh.getWorldPosition(currentWorldPos);
-      
-      // F28: Számoljuk ki a sidebar eltolást a célponton
-      let horizontalOffset = 0;
-      if (window.innerWidth <= 1024) {
-        const leftOpen = document.getElementById("list-sidebar").classList.contains("mobile-open");
-        const rightOpen = document.getElementById("info-sidebar").classList.contains("mobile-open");
-        if (leftOpen) {
-          horizontalOffset = 18;
-        } else if (rightOpen) {
-          horizontalOffset = -18;
-        }
-      }
-      
-      const rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-      const offsetPos = currentWorldPos.clone().add(rightDir.multiplyScalar(horizontalOffset));
-      
-      // Kiszámítjuk a bolygó elmozdulását a controls.target-hez képest
-      const deltaTranslation = offsetPos.clone().sub(controls.target);
-      
-      // Elmozdítjuk a kamerát és a célpontot is
-      camera.position.add(deltaTranslation);
-      controls.target.copy(offsetPos);
-      
-      // F16: Frissítjük a controls-t képkockánként a zökkenőmentes követésért (nincs jitter)
-      controls.update();
-    }
-  }
-  
-  // 4. Cinematic Mód frissítése képkockánként
+  // Cinematic Mód frissítése képkockánként
   if (isCinematicMode) {
     updateCinematicMode(dt);
     needsRender = true;
   }
   
-  // 5. Frissítjük a kamera pozícióját a sima átmenetből (ha fut)
+  // 1. Elsőként frissítjük a kamera pozícióját az átmenetből (ha fut)
   if (isTransitioning) {
     updateTransition();
     needsRender = true;
   }
   
-  // 6. Frissítjük a kamerát az OrbitControls alapján (damping, manuális forgatás) - csak ha nem vagyunk mozi módban
+  // 2. Frissítjük a kamerát az OrbitControls alapján (damping, manuális forgatás) - csak ha nem vagyunk mozi módban
   if (!isCinematicMode) {
-    // Korlátozzuk a kameracél elmozdulását, hogy ne lehessen eltévedni a sötétben
-    const maxTargetDist = 600;
-    if (controls.target.length() > maxTargetDist) {
-      controls.target.setLength(maxTargetDist);
-    }
     controls.update();
   }
   
-  // 7. Megakadályozzuk a kamera átfedését az égitestekkel (kollízió elkerülés)
+  // 3. Frissítjük az égitestek fizikai pozícióit/forgásait
+  if (!isPaused) {
+    update3D(dt);
+    needsRender = true;
+  }
+  
+  // Megakadályozzuk a kamera átfedését az égitestekkel (kollízió elkerülés)
   avoidPlanetCollisions();
   
-  // 8. Frissítjük a feliratok pozícióját és láthatóságát (nulla lag és ugrásmentes követés)
+  // 4. Frissítjük a feliratok pozícióját és láthatóságát a legfrissebb kamera- és bolygóállások alapján (nulla lag és ugrásmentes követés)
   updateLabels();
   
-  // 9. Intelligens kamera-mozgás figyelés: Csak akkor renderelünk, ha a kamera vagy a célpont elmozdult
+  // 5. Intelligens kamera-mozgás figyelés: Csak akkor renderelünk, ha a kamera vagy a célpont elmozdult
   if (camera.position.distanceToSquared(lastCameraPosition) > 0.00001 ||
       controls.target.distanceToSquared(lastCameraTarget) > 0.00001 ||
       isStartupAnimating) {
@@ -1248,40 +878,43 @@ function update3D(dt) {
     // Pályasugár lekérése az aktuális méretmódban
     const dist = getPlanet3DDistance(planet);
     
-    // Pozíció kiszámítása az ekliptikai síkban
+    // Pozíció kiszámítása az ekliptikai síkban (Three.js koordináta rendszerben: X és Z síkban kering, Y a magasság)
     const x = Math.cos(planet.currentAngle) * dist;
     const z = Math.sin(planet.currentAngle) * dist;
     
-    // A fordítási csoportot mozgatjuk
+    // A fordítási csoportot mozgatjuk (amiben a döntött bolygótest és a címke van)
     pm.translationGroup.position.set(x, 0, z);
   });
+  
+  // Ha ki van jelölve bolygó (és épp nincs folyamatban kameraváltás), a kamera célpontja és a kamera pozíciója követi őt
+  if (selectedPlanet && selectedPlanet.id !== "sun" && !isTransitioning) {
+    const pm = planetMeshes[selectedPlanet.id];
+    if (pm) {
+      pm.mesh.updateMatrixWorld(true);
+      const currentWorldPos = new THREE.Vector3();
+      pm.mesh.getWorldPosition(currentWorldPos);
+      
+      // Kiszámítjuk a bolygó elmozdulását az előző képkockához képest
+      const deltaTranslation = currentWorldPos.clone().sub(controls.target);
+      
+      // Elmozdítjuk a kamerát is ugyanezzel a vektorral, így a relatív távolság/szög állandó marad
+      camera.position.add(deltaTranslation);
+      controls.target.copy(currentWorldPos);
+    }
+  }
 }
 
 // Név-címkék pozíciójának és láthatóságának frissítése (nulla laggal és tökéletes ugrásmentes követéssel)
 function updateLabels() {
-  if (!showLabels) {
-    Object.values(planetMeshes).forEach(pm => {
-      if (pm.labelSprite) pm.labelSprite.visible = false;
-    });
-    return;
-  }
-  
-  // F14: A szög és dőlésszög arányt (t) csak egyszer számoljuk ki a teljes képkockára a loop-on kívül
-  let t = 1.0; // 0 = teljes 2D (felülnézet), 1 = teljes 3D (oldalnézet)
-  if (controls && controls.target) {
-    const cameraOffsetVec = camera.position.clone().sub(controls.target);
-    const tempSpherical = new THREE.Spherical().setFromVector3(cameraOffsetVec);
-    
-    // phi tartomány leképezése: 2D-ben ~0.05, 3D-ben ~1.25 (vagy több)
-    const minPhi = 0.05;
-    const maxPhi = 1.25; 
-    t = (tempSpherical.phi - minPhi) / (maxPhi - minPhi);
-    t = Math.max(0.0, Math.min(1.0, t));
-  }
-
+  scene.updateMatrixWorld(true); // Frissítjük az összes világmátrixot a pontos követésért és ugrásmentességért!
   planetsData.forEach((planet) => {
     const pm = planetMeshes[planet.id];
     if (!pm || !pm.labelSprite) return;
+    
+    if (!showLabels) {
+      pm.labelSprite.visible = false;
+      return;
+    }
     
     const r = getRenderRadius3D(planet);
     
@@ -1300,13 +933,21 @@ function updateLabels() {
     // A felirat méretéhez igazítjuk a bolygótól vett eltolást (offset), elkerülve az átfedést nagy méretnél
     const offsetFactor = Math.max(1.0, scaleFactor * 0.8);
     
-    let extraOffset = 0;
-    if (planet.id === "sun") {
-      extraOffset = 10;
-    } else if (planet.hasRings) {
-      extraOffset = 14; // Gyűrűs bolygóknál magasabb eltolást használunk az ütközések ellen
+    // Kiszámítjuk az eltolás célvektorát a kamera aktuális dőlésszöge (polar angle - phi) alapján.
+    // Ezzel elkerüljük az azonnali átugrást, és a felirat pozíciója szinkronban mozog a kamera forgásával!
+    let t = 1.0; // 0 = teljes 2D (felülnézet), 1 = teljes 3D (oldalnézet)
+    if (controls && controls.target) {
+      const cameraOffsetVec = camera.position.clone().sub(controls.target);
+      const tempSpherical = new THREE.Spherical().setFromVector3(cameraOffsetVec);
+      
+      // phi tartomány leképezése: 2D-ben ~0.05, 3D-ben ~1.25 (vagy több)
+      const minPhi = 0.05;
+      const maxPhi = 1.25; 
+      t = (tempSpherical.phi - minPhi) / (maxPhi - minPhi);
+      t = Math.max(0.0, Math.min(1.0, t));
     }
     
+    const extraOffset = planet.id === "sun" ? 10 : 0;
     const pos2D = new THREE.Vector3(0, 0, r + (11 + extraOffset) * offsetFactor);
     const pos3D = new THREE.Vector3(0, r + (8 + extraOffset) * offsetFactor, 0);
     const targetLocalPos = new THREE.Vector3().lerpVectors(pos2D, pos3D, t);
@@ -1315,15 +956,7 @@ function updateLabels() {
     pm.labelSprite.position.copy(targetLocalPos);
     
     pm.labelSprite.scale.set(36 * scaleFactor, 9 * scaleFactor, 1);
-    
-    // Távolság-alapú áttetszőségi elúsztatás (opacity fade)
-    let opacity = 1.0;
-    if (distToCam > 600) {
-      opacity = 1.0 - (distToCam - 600) / 400;
-      opacity = Math.max(0.0, opacity);
-    }
-    pm.labelSprite.material.opacity = opacity;
-    pm.labelSprite.visible = showLabels && opacity > 0.01;
+    pm.labelSprite.visible = true;
   });
 }
 
@@ -1358,20 +991,6 @@ function updateSpeed(val) {
 
   const btnMobile = document.getElementById("btn-mobile-speed");
   if (btnMobile) btnMobile.innerText = timeSpeed.toFixed(1) + "x";
-  
-  // Keressük meg a legközelebbi indexet a sebességtömbben
-  if (typeof speeds !== 'undefined') {
-    let minDiff = Infinity;
-    let bestIndex = 0;
-    for (let i = 0; i < speeds.length; i++) {
-      const diff = Math.abs(speeds[i] - timeSpeed);
-      if (diff < minDiff) {
-        minDiff = diff;
-        bestIndex = i;
-      }
-    }
-    currentSpeedIndex = bestIndex;
-  }
 }
 
 // Mobil sebesség-léptetés körforgása (gombos vezérlés)
@@ -1440,14 +1059,12 @@ function resetCamera() {
   selectedPlanet = planetsData.find(p => p.id === "sun");
   selectPlanet("sun");
   
-  isTransitioning = false; // Leállítjuk a transitiont, hogy a kézi pozíció ne íródjon felül a loopban
   controls.target.set(0, 0, 0);
   if (currentViewMode === "2d") {
     camera.position.set(0, 480, 0.01);
   } else {
     camera.position.set(0, 250, 450);
   }
-  controls.update();
 }
 
 // 2D / 3D Nézetváltás funkció
@@ -1542,7 +1159,7 @@ function enterCinematicMode() {
   cinematicSelectCurrent();
 }
 
-function exitCinematicMode(newSelectedPlanetId) {
+function exitCinematicMode() {
   if (!isCinematicMode) return;
   isCinematicMode = false;
 
@@ -1582,34 +1199,11 @@ function exitCinematicMode(newSelectedPlanetId) {
   // Visszaállítjuk a nézetmódot
   changeViewMode(originalViewModeBeforeCinematic);
 
-  // Fókusz megőrzése / visszaállítása
-  const planetToSelect = newSelectedPlanetId || originalSelectedPlanetBeforeCinematic;
-  if (planetToSelect) {
-    selectPlanet(planetToSelect);
+  // Visszaállítjuk a fókuszált bolygót
+  if (originalSelectedPlanetBeforeCinematic) {
+    selectPlanet(originalSelectedPlanetBeforeCinematic);
   } else {
-    // Ha nem volt semmi kiválasztva korábban, visszaállítjuk az alaphelyzetet a Nap fókusszal, de a Welcome panel megjelenítésével
     selectedPlanet = null;
-    isFollowingPlanet = false;
-    
-    // Welcome panel megjelenítése
-    const welcome = document.getElementById("welcome-panel");
-    if (welcome) welcome.style.display = "block";
-    const presenter = document.getElementById("planet-presenter");
-    if (presenter) presenter.style.display = "none";
-    
-    // Levesszük az aktív osztályt az összes listaelemről
-    document.querySelectorAll(".planet-item").forEach(item => {
-      item.classList.remove("active");
-    });
-    
-    // Kamera és controls a Napra fókuszálása, de transition nélkül
-    controls.target.set(0, 0, 0);
-    if (currentViewMode === "2d") {
-      camera.position.set(0, 480, 0.01);
-    } else {
-      camera.position.set(0, 250, 450);
-    }
-    controls.update();
   }
 }
 
@@ -1619,9 +1213,7 @@ function cinematicSelectCurrent() {
   const planetId = cinematicSequence[cinematicPlanetIndex];
   
   // Bolygó kiválasztása (ez elindítja a 1.8 másodperces kamerarepülést is)
-  window.isAutomaticTourChange = true;
   selectPlanet(planetId);
-  window.isAutomaticTourChange = false;
 
   // Overlay feliratok frissítése
   const planet = planetsData.find(p => p.id === planetId);
@@ -1646,18 +1238,6 @@ function updateCinematicMode(dt) {
   cinematicTimer += dt;
   const currentDuration = 24.0; // 24 másodperc égitestenként (10 * 24s = 240s)
   
-  // F27: Váltogatjuk a bemutatott tényeket 8 másodpercenként (3 tény per bolygó)
-  if (selectedPlanet.details && selectedPlanet.details.facts && selectedPlanet.details.facts.length > 0) {
-    const factIndex = Math.floor(cinematicTimer / 8.0) % selectedPlanet.details.facts.length;
-    const factEl = document.getElementById("cinematic-fact");
-    if (factEl && selectedPlanet.details.facts[factIndex]) {
-      const targetFact = selectedPlanet.details.facts[factIndex];
-      if (factEl.innerText !== targetFact) {
-        factEl.innerText = targetFact;
-      }
-    }
-  }
-
   // Progress bar frissítése
   const progressPercent = Math.min((cinematicTimer / currentDuration) * 100, 100);
   const progressFill = document.getElementById("cinematic-progress-fill");
@@ -1742,12 +1322,6 @@ function lock2DControls() {
   controls.maxPolarAngle = Math.PI;
   controls.minAzimuthAngle = -Infinity;
   controls.maxAzimuthAngle = Infinity;
-  
-  // Touch vezérlés 2D módban: 1 ujj = csúsztatás (Pan), 2 ujj = zoom (Dolly)
-  controls.touches = {
-    ONE: THREE.TOUCH.PAN,
-    TWO: THREE.TOUCH.DOLLY
-  };
 }
 
 // 3D kamera-szabadság beállítása
@@ -1757,12 +1331,6 @@ function unlock3DControls() {
   controls.maxPolarAngle = Math.PI;
   controls.minAzimuthAngle = -Infinity;
   controls.maxAzimuthAngle = Infinity;
-  
-  // Touch vezérlés 3D módban: 1 ujj = forgatás (Rotate), 2 ujj = zoom/csúsztatás (Dolly/Pan)
-  controls.touches = {
-    ONE: THREE.TOUCH.ROTATE,
-    TWO: THREE.TOUCH.DOLLY_PAN
-  };
 }
 
 // Induló zoom-out animáció a Napból 3mp (3000ms) alatt
