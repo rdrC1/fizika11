@@ -541,6 +541,7 @@ function focusCameraOnSelected() {
   if (!selectedPlanet) return;
   
   const pm = planetMeshes[selectedPlanet.id];
+  pm.mesh.updateMatrixWorld(true);
   const targetWorldPos = new THREE.Vector3();
   pm.mesh.getWorldPosition(targetWorldPos);
   
@@ -620,6 +621,7 @@ function updateTransition() {
   const pm = planetMeshes[selectedPlanet.id];
   const liveTargetPos = new THREE.Vector3();
   if (pm) {
+    pm.mesh.updateMatrixWorld(true);
     pm.mesh.getWorldPosition(liveTargetPos);
   } else {
     liveTargetPos.copy(endTarget);
@@ -699,6 +701,8 @@ function updateTransition() {
 let lastCameraPosition = new THREE.Vector3();
 let lastCameraTarget = new THREE.Vector3();
 let forceRenderFrame = false;
+let lastCanvasWidth = 0;
+let lastCanvasHeight = 0;
 
 // 3D Szimuláció render loopja
 let lastTime = 0;
@@ -708,6 +712,20 @@ function loop3D(timestamp) {
   lastTime = timestamp;
   
   let needsRender = false;
+  
+  // Intelligens reszponzivitás: ha változott a tároló mérete (pl. mozi mód rács-animáció miatt),
+  // átméretezzük a canvas-t a tökéletes buttery-smooth vizualitásért
+  const canvas = document.getElementById("simulationCanvas");
+  if (canvas) {
+    const width = canvas.parentElement.clientWidth;
+    const height = canvas.parentElement.clientHeight;
+    if (width !== lastCanvasWidth || height !== lastCanvasHeight) {
+      onWindowResize();
+      lastCanvasWidth = width;
+      lastCanvasHeight = height;
+      needsRender = true;
+    }
+  }
   
   // Cinematic Mód frissítése képkockánként
   if (isCinematicMode) {
@@ -791,6 +809,7 @@ function update3D(dt) {
   if (selectedPlanet && selectedPlanet.id !== "sun" && !isTransitioning) {
     const pm = planetMeshes[selectedPlanet.id];
     if (pm) {
+      pm.mesh.updateMatrixWorld(true);
       const currentWorldPos = new THREE.Vector3();
       pm.mesh.getWorldPosition(currentWorldPos);
       
@@ -806,6 +825,7 @@ function update3D(dt) {
 
 // Név-címkék pozíciójának és láthatóságának frissítése (nulla laggal és tökéletes ugrásmentes követéssel)
 function updateLabels() {
+  scene.updateMatrixWorld(true); // Frissítjük az összes világmátrixot a pontos követésért és ugrásmentességért!
   planetsData.forEach((planet) => {
     const pm = planetMeshes[planet.id];
     if (!pm || !pm.labelSprite) return;
@@ -1084,6 +1104,7 @@ function updateCinematicMode(dt) {
 
     const pm = planetMeshes[selectedPlanet.id];
     if (pm) {
+      pm.mesh.updateMatrixWorld(true);
       const liveTargetPos = new THREE.Vector3();
       pm.mesh.getWorldPosition(liveTargetPos);
       
