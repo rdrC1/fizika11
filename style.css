@@ -812,6 +812,118 @@ header {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
 }
 
+.toggle-label .toggle-icon {
+  display: none;
+}
+
+.btn-mobile-only {
+  display: none;
+}
+
+/* Mobil specifikus alsó sáv stílusok */
+.mobile-bottom-bar-container {
+  display: none;
+}
+
+.mobile-bottom-bar {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glass);
+  border-radius: 30px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+  pointer-events: auto;
+}
+
+.btn-mobile {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: var(--font-primary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.btn-mobile svg {
+  display: block;
+}
+
+.btn-mobile:hover, .btn-mobile:active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.btn-mobile.active {
+  background: var(--accent-color) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 0 12px var(--accent-glow) !important;
+}
+
+.mobile-layers-panel {
+  display: flex;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glass);
+  border-radius: 20px;
+  margin-bottom: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.mobile-layers-panel.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.btn-mobile-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
+  color: var(--text-secondary);
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.btn-mobile-toggle svg {
+  display: block;
+}
+
+.btn-mobile-toggle.active {
+  background: var(--accent-color) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 0 8px var(--accent-glow) !important;
+}
+
 /* UI responsive properties and overrides */
 @media (max-width: 1024px) {
   .app-container {
@@ -881,7 +993,7 @@ header {
   .mobile-sidebar-toggle {
     display: flex;
     position: absolute;
-    bottom: calc(110px + env(safe-area-inset-bottom));
+    bottom: calc(76px + env(safe-area-inset-bottom));
     z-index: 10;
     background: var(--bg-glass);
     border: 1px solid var(--border-glass);
@@ -905,59 +1017,12 @@ header {
     right: 16px;
   }
   
-  /* Compact bottom controls for mobile portrait */
   .canvas-floating-controls {
-    bottom: calc(16px + env(safe-area-inset-bottom));
-    padding: 8px 16px;
-    gap: 12px;
-    width: 92%;
-    max-width: 480px;
-    justify-content: space-between;
+    display: none !important;
   }
-  
-  /* On mobile, style toggle-label as a clickable button instead of text + checkbox switch */
-  .toggle-label {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border-glass);
-    padding: 6px 12px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-  }
-  
-  .toggle-label.active {
-    background: var(--accent-color);
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 0 10px var(--accent-glow);
-  }
-  
-  .toggle-label.active span {
-    color: #ffffff;
-  }
-  
-  .toggle-label .toggle-switch {
-    display: none; /* Hide the physical switch */
-  }
-  
-  /* Compact speed slider on mobile */
-  .slider-container {
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    min-width: auto;
-  }
-  
-  .slider-label {
-    flex-direction: row;
-    gap: 4px;
-    font-size: 0.75rem;
-  }
-  
-  .slider-label span:first-child {
-    display: none; /* Hide the word "Idősebesség" to save space */
-  }
-  
-  .slider {
-    width: 70px;
+
+  .mobile-bottom-bar-container {
+    display: flex;
   }
 }
 
@@ -983,20 +1048,8 @@ header {
     gap: 8px;
   }
   
-  .canvas-floating-controls {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px 12px;
-    border-radius: 12px;
-    bottom: calc(12px + env(safe-area-inset-bottom));
-  }
-  
-  .control-divider {
-    display: none;
-  }
-  
   .mobile-sidebar-toggle {
-    bottom: calc(120px + env(safe-area-inset-bottom)); /* Push toggles up slightly to clear the multi-line bottom control box */
+    bottom: calc(76px + env(safe-area-inset-bottom));
   }
 }
 
@@ -1022,6 +1075,12 @@ header {
 
 /* Hide normal controls in cinematic mode */
 .app-container.cinematic-active .canvas-floating-controls {
+  transform: translate(-50%, 200px) scale(0.9);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-container.cinematic-active .mobile-bottom-bar-container {
   transform: translate(-50%, 200px) scale(0.9);
   opacity: 0;
   pointer-events: none;

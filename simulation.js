@@ -19,6 +19,7 @@ let isStartupAnimating = true;
 let isCinematicMode = false;
 let cinematicPlanetIndex = 0;
 let cinematicTimer = 0;
+let cinematicMoveTimer = 0;
 const cinematicSequence = ["sun", "mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
 let originalViewModeBeforeCinematic = "2d";
 let originalSelectedPlanetBeforeCinematic = null;
@@ -107,6 +108,9 @@ function initSimulation() {
   window.addEventListener("resize", onWindowResize);
   setup3DInputHandlers();
   
+  // Mobil gombok kezdőállapotának beállítása
+  syncMobileToggles();
+  
   // 1.5 másodperces zoom-out animáció indítása a Napból
   runStartupAnimation();
   
@@ -118,13 +122,15 @@ function initSimulation() {
 // Ablak átméretezése
 function onWindowResize() {
   const canvas = document.getElementById("simulationCanvas");
+  if (!canvas || !canvas.parentElement) return;
   const width = canvas.parentElement.clientWidth;
   const height = canvas.parentElement.clientHeight;
   
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-  
-  renderer.setSize(width, height);
+  if (width > 0 && height > 0) {
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+  }
 }
 
 // 3D Csillagmező particle rendszer
@@ -555,10 +561,27 @@ function focusCameraOnSelected() {
   startSpherical.setFromVector3(startOffset);
   
   const radius = getRenderRadius3D(selectedPlanet);
-  const focusDistance = selectedPlanet.id === "sun" ? 180 : radius * 4.5 + 30;
+  // Mobilos aspect ratio korrekció a zoomhoz (ha aspect < 1, közelebb visszük a kamerát)
+  const aspectFactor = camera.aspect < 1 ? Math.max(0.5, camera.aspect) : 1.0;
+  const focusDistance = (selectedPlanet.id === "sun" ? 180 : radius * 4.5 + 30) * aspectFactor;
   
   // Célpozíció relatív eltolásának kiszámítása nézetmód alapján
-  if (currentViewMode === "2d") {
+  if (isCinematicMode) {
+    let basePhi = 1.15;
+    if (selectedPlanet.id === "saturn" || selectedPlanet.id === "uranus") {
+      basePhi = 1.25;
+    } else if (selectedPlanet.id === "sun") {
+      basePhi = 1.05;
+    }
+    
+    // A cél gömbi koordinátát a cinematic mód induló szögére állítjuk be,
+    // így a transition pont ott ér véget, ahonnan a pásztázás indul, ugrás nélkül!
+    endSpherical.set(focusDistance, basePhi, cinematicAngle);
+    cameraOffset.setFromSpherical(endSpherical);
+    
+    endEmissive = 0.0;
+    endOrbitOpacity = 0.06;
+  } else if (currentViewMode === "2d") {
     // Kiszámítjuk a magasságot a bolygó mérete alapján
     const height = selectedPlanet.id === "sun" ? 480 : radius * 12 + 80;
     
@@ -640,7 +663,15 @@ function updateTransition() {
   // 1. Kamera és célpont pozícionálása az interpolált célpont alapján (megszünteti a bolygóváltáskori ugrálást)
   controls.target.lerpVectors(startTarget, liveTargetPos, easeProgress);
   camera.position.copy(controls.target).add(currentOffset);
-  camera.lookAt(controls.target);
+  
+  if (isCinematicMode && camera.aspect < 1) {
+    // Mobilon eltoljuk a nézési célpontot lefelé, hogy a bolygó feljebb jelenjen meg
+    const verticalOffset = new THREE.Vector3(0, -currentRadius * 0.15, 0);
+    const lookTarget = controls.target.clone().add(verticalOffset);
+    camera.lookAt(lookTarget);
+  } else {
+    camera.lookAt(controls.target);
+  }
   
   // 2. Fényerő (Emissive Intensity) elúsztatása
   const currentEmissive = startEmissive + (endEmissive - startEmissive) * easeProgress;
@@ -888,12 +919,41 @@ function togglePlay() {
       ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Lejátszás` 
       : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg> Szünet`;
   }
+
+  // Mobil gomb szinkronizálása
+  const btnMobile = document.getElementById("btn-mobile-play");
+  if (btnMobile) {
+    btnMobile.innerHTML = isPaused
+      ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`
+      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+    btnMobile.classList.toggle("active", isPaused);
+  }
 }
 
 function updateSpeed(val) {
   timeSpeed = parseFloat(val);
   const text = document.getElementById("speed-multiplier");
   if (text) text.innerText = timeSpeed.toFixed(1) + "x";
+  
+  // Szinkronizáljuk a mobil sebességváltó gomb szövegét is
+  const btn = document.getElementById("btn-speed-cycle");
+  if (btn) btn.innerText = timeSpeed.toFixed(1) + "x";
+
+  const btnMobile = document.getElementById("btn-mobile-speed");
+  if (btnMobile) btnMobile.innerText = timeSpeed.toFixed(1) + "x";
+}
+
+// Mobil sebesség-léptetés körforgása (gombos vezérlés)
+const speeds = [1.0, 2.0, 5.0, 10.0, 0.5];
+let currentSpeedIndex = 0;
+function cycleSpeed() {
+  currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+  const newSpeed = speeds[currentSpeedIndex];
+  updateSpeed(newSpeed);
+  
+  // Szinkronizáljuk a csúszkát is
+  const slider = document.getElementById("speed-slider");
+  if (slider) slider.value = newSpeed;
 }
 
 function toggleOrbits(val) {
@@ -903,6 +963,7 @@ function toggleOrbits(val) {
     lineGroup.visible = val;
   });
   forceRenderFrame = true;
+  syncMobileToggles();
 }
 
 function toggleLabels(val) {
@@ -913,9 +974,35 @@ function toggleLabels(val) {
     }
   });
   forceRenderFrame = true;
+  syncMobileToggles();
 }
 
+function syncMobileToggles() {
+  const btnOrbits = document.getElementById("btn-mobile-orbits");
+  if (btnOrbits) {
+    btnOrbits.classList.toggle("active", showOrbits);
+  }
+  const btnLabels = document.getElementById("btn-mobile-labels");
+  if (btnLabels) {
+    btnLabels.classList.toggle("active", showLabels);
+  }
+}
 
+function toggleMobileLayersPanel() {
+  const panel = document.getElementById("mobile-layers-panel");
+  if (panel) {
+    panel.classList.toggle("active");
+    const btn = document.getElementById("btn-mobile-layers");
+    if (btn) {
+      btn.classList.toggle("active", panel.classList.contains("active"));
+    }
+  }
+}
+
+function toggleViewMode() {
+  const newMode = currentViewMode === "2d" ? "3d" : "2d";
+  changeViewMode(newMode);
+}
 
 // Kamera alaphelyzetbe hozatala a 3D-ben (tiszteletben tartva a nézet módot)
 function resetCamera() {
@@ -942,6 +1029,13 @@ function changeViewMode(mode) {
     btn3d.classList.remove("active");
     if (mode === "2d") btn2d.classList.add("active");
     else btn3d.classList.add("active");
+  }
+
+  // Mobil gomb szinkronizálása
+  const btnMobileView = document.getElementById("btn-mobile-view");
+  if (btnMobileView) {
+    btnMobileView.innerText = mode.toUpperCase();
+    btnMobileView.classList.toggle("active", mode === "3d");
   }
   
   // 3D módba lépéskor azonnal feloldjuk a kamera forgatási korlátait
@@ -1003,6 +1097,10 @@ function enterCinematicMode() {
   // 3D nézetbe lépünk
   changeViewMode("3d");
 
+  // Cinematic gombok aktív osztályának beállítása
+  const btnMobileCinematic = document.getElementById("btn-mobile-cinematic");
+  if (btnMobileCinematic) btnMobileCinematic.classList.add("active");
+
   // Megjelenítjük a cinematic overlayt
   const overlay = document.getElementById("cinematic-overlay");
   if (overlay) overlay.style.display = "flex";
@@ -1014,6 +1112,16 @@ function enterCinematicMode() {
 function exitCinematicMode() {
   if (!isCinematicMode) return;
   isCinematicMode = false;
+
+  // Bezárjuk a mobil rétegek panelt ha nyitva volt
+  const layersPanel = document.getElementById("mobile-layers-panel");
+  if (layersPanel) layersPanel.classList.remove("active");
+  const layersBtn = document.getElementById("btn-mobile-layers");
+  if (layersBtn) layersBtn.classList.remove("active");
+
+  // Cinematic gombok aktív osztályának eltávolítása
+  const btnMobileCinematic = document.getElementById("btn-mobile-cinematic");
+  if (btnMobileCinematic) btnMobileCinematic.classList.remove("active");
 
   // Visszahozzuk a kezelőfelületet
   const appContainer = document.getElementById("app-container");
@@ -1069,6 +1177,7 @@ function cinematicSelectCurrent() {
 
   // Időzítők nullázása
   cinematicTimer = 0;
+  cinematicMoveTimer = 0;
   const progressFill = document.getElementById("cinematic-progress-fill");
   if (progressFill) progressFill.style.width = "0%";
 }
@@ -1077,7 +1186,7 @@ function updateCinematicMode(dt) {
   if (!isCinematicMode || !selectedPlanet) return;
 
   cinematicTimer += dt;
-  const currentDuration = 6.0; // 6 másodperc égitestenként (10 * 6s = 60s)
+  const currentDuration = 24.0; // 24 másodperc égitestenként (10 * 24s = 240s)
   
   // Progress bar frissítése
   const progressPercent = Math.min((cinematicTimer / currentDuration) * 100, 100);
@@ -1098,6 +1207,9 @@ function updateCinematicMode(dt) {
 
   // Csak akkor pásztázunk, ha a kamera már odaért a bolygóhoz (a transition lefutott)
   if (!isTransitioning) {
+    // Csak a transition lefutása után ketyeg a pásztázási időzítő a zökkenőmentes induláshoz
+    cinematicMoveTimer += dt;
+    
     // Lassú, folyamatos pásztázó és keringő kamera-mozgás
     const speed = 0.12; // szögsebesség rad/sec
     cinematicAngle += dt * speed;
@@ -1109,7 +1221,9 @@ function updateCinematicMode(dt) {
       pm.mesh.getWorldPosition(liveTargetPos);
       
       const r = getRenderRadius3D(selectedPlanet);
-      let focusDistance = selectedPlanet.id === "sun" ? 180 : r * 4.5 + 30;
+      // Mobilos aspect ratio korrekció a cinematic zoomhoz is (ha aspect < 1, közelebb visszük a kamerát)
+      const aspectFactor = camera.aspect < 1 ? Math.max(0.5, camera.aspect) : 1.0;
+      let focusDistance = (selectedPlanet.id === "sun" ? 180 : r * 4.5 + 30) * aspectFactor;
       
       // Dinamikus látvány: bolygóspecifikus távolságok és lassú bobbing polárszögben (phi)
       let basePhi = 1.15; // enyhén döntött sík
@@ -1124,8 +1238,8 @@ function updateCinematicMode(dt) {
         phiAmplitude = 0.15;
       }
       
-      // Szinuszos fel-le lebegő mozgás a polárszögben
-      const phi = basePhi + Math.sin(cinematicTimer * 0.4) * phiAmplitude;
+      // Szinuszos fel-le lebegő mozgás a polárszögben a külön mozgási időzítővel (0-ról indul)
+      const phi = basePhi + Math.sin(cinematicMoveTimer * 0.4) * phiAmplitude;
       const theta = cinematicAngle;
 
       const currentSpherical = new THREE.Spherical(focusDistance, phi, theta);
@@ -1136,7 +1250,15 @@ function updateCinematicMode(dt) {
       // Kamera pozícionálása
       controls.target.copy(liveTargetPos);
       camera.position.copy(controls.target).add(offset);
-      camera.lookAt(controls.target);
+      
+      if (camera.aspect < 1) {
+        // Mobilon eltoljuk a nézési célpontot lefelé, hogy a bolygó feljebb jelenjen meg (elkerülve a felirat takarását)
+        const verticalOffset = new THREE.Vector3(0, -focusDistance * 0.15, 0);
+        const lookTarget = liveTargetPos.clone().add(verticalOffset);
+        camera.lookAt(lookTarget);
+      } else {
+        camera.lookAt(controls.target);
+      }
       
       forceRenderFrame = true;
     }
