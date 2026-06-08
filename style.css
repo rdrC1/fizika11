@@ -29,13 +29,17 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html, body {
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+}
+
 body {
   font-family: var(--font-primary);
   background-color: var(--bg-space);
   color: var(--text-primary);
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
   user-select: none;
 }
 
@@ -784,8 +788,10 @@ header {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
+  right: 0;
+  bottom: 0;
   height: 100vh;
+  height: 100dvh;
   background: transparent; /* Completely transparent to prevent screen darkening on mobile */
   z-index: 90;
   opacity: 0;
@@ -816,10 +822,11 @@ header {
     position: fixed;
     top: 0;
     bottom: 0;
-    height: 100vh;
+    height: 100%;
+    height: 100dvh;
     width: 85%;
     max-width: 320px;
-    max-height: 100vh;
+    max-height: 100dvh;
     z-index: 100;
     background: #06060e; /* Completely solid opaque background to prevent performance issues and text blur on mobile */
     box-shadow: 0 0 35px rgba(0, 0, 0, 0.9);
@@ -853,6 +860,11 @@ header {
   
   .sidebar-body {
     padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .planet-list {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
   }
   
   .sidebar-header {
@@ -867,7 +879,7 @@ header {
   .mobile-sidebar-toggle {
     display: flex;
     position: absolute;
-    bottom: 110px;
+    bottom: calc(110px + env(safe-area-inset-bottom));
     z-index: 10;
     background: var(--bg-glass);
     border: 1px solid var(--border-glass);
@@ -893,7 +905,7 @@ header {
   
   /* Compact bottom controls for mobile portrait */
   .canvas-floating-controls {
-    bottom: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
     padding: 8px 16px;
     gap: 12px;
     width: 92%;
@@ -974,7 +986,7 @@ header {
     justify-content: center;
     gap: 8px 12px;
     border-radius: 12px;
-    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
   }
   
   .control-divider {
@@ -982,6 +994,6 @@ header {
   }
   
   .mobile-sidebar-toggle {
-    bottom: 120px; /* Push toggles up slightly to clear the multi-line bottom control box */
+    bottom: calc(120px + env(safe-area-inset-bottom)); /* Push toggles up slightly to clear the multi-line bottom control box */
   }
 }

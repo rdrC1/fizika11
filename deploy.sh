@@ -9,7 +9,7 @@
 # ----------------- Kérlek módosítsd az alábbi adatokat! -----------------
 SERVER_USER="zsombor"                     # A Linux szerver felhasználóneve
 SERVER_IP="192.168.1.100"                 # A szerver IP címe vagy domain neve
-DEPLOY_PATH="/var/www/prolisim"           # A célkönyvtár a szerveren
+DEPLOY_PATH="~/fizika11"                  # A célkönyvtár a szerveren (a mappád neve)
 # ------------------------------------------------------------------------
 
 # Színek a konzol kimenethez
