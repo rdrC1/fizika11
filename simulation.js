@@ -15,6 +15,17 @@ let selectedPlanet = null;
 let currentViewMode = "2d"; // "2d" vagy "3d" (a 2D az alapértelmezett)
 let isStartupAnimating = true;
 
+// Cinematic Mód állapotváltozók
+let isCinematicMode = false;
+let cinematicPlanetIndex = 0;
+let cinematicTimer = 0;
+const cinematicSequence = ["sun", "mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
+let originalViewModeBeforeCinematic = "2d";
+let originalSelectedPlanetBeforeCinematic = null;
+let originalShowOrbits = true;
+let originalShowLabels = false;
+let cinematicAngle = 0;
+
 // Csillagászati adatok kiegészítése (tengelyferdeség, tengelyforgás, pálya dőlésszöge fokban)
 const astroParams = {
   sun: { tilt: 7.25, spinSpeed: 0.05, inclination: 0 },
@@ -88,6 +99,9 @@ function initSimulation() {
   
   // 7. Égitestek 3D-s objektumainak felépítése
   buildCelestialBodies();
+  
+  // WebGL Shader-ek előzetes lefordítása a GPU-n a tranzíciók alatti akadozások kiküszöbölésére
+  renderer.compile(scene, camera);
   
   // Eseménykezelők
   window.addEventListener("resize", onWindowResize);
@@ -252,17 +266,22 @@ function buildCelestialBodies() {
     const pivot = new THREE.Group();
     pivot.add(mesh);
     
-    // Szöveges név-címke (Sprite) létrehozása és hozzáadása a pivot-hoz
-    const labelSprite = createTextSprite(planet.name, planet.glowColor || planet.color);
-    labelSprite.position.set(0, 0, r + 11); // Kezdeti felülnézeti (2D) pozíció
-    pivot.add(labelSprite);
-    
     const params = astroParams[planet.id];
     pivot.rotation.z = (params.tilt * Math.PI) / 180;
     
+    // Fordítási csoport (Translation Group) - hogy a címke ne örökölje a tengelyferdeséget (tilt-et),
+    // de a bolygóval együtt mozogjon a pályáján
+    const translationGroup = new THREE.Group();
+    translationGroup.add(pivot);
+    
+    // Szöveges név-címke (Sprite) létrehozása és hozzáadása a translationGroup-hoz (nem a pivot-hoz)
+    const labelSprite = createTextSprite(planet.name, planet.glowColor || planet.color);
+    labelSprite.position.set(0, 0, r + 11); // Kezdeti felülnézeti (2D) pozíció
+    translationGroup.add(labelSprite);
+    
     // Pályacsoport (Orbital group) - Keringési dőlésszög (Inclination) beállításához
     const orbitGroup = new THREE.Group();
-    orbitGroup.add(pivot);
+    orbitGroup.add(translationGroup);
     orbitGroup.rotation.x = (params.inclination * Math.PI) / 180;
     
     scene.add(orbitGroup);
@@ -271,6 +290,7 @@ function buildCelestialBodies() {
     planetMeshes[planet.id] = {
       mesh: mesh,
       pivot: pivot,
+      translationGroup: translationGroup,
       orbitGroup: orbitGroup,
       data: planet,
       standardMaterial: material, // megmarad a névleges kompatibilitás
@@ -417,12 +437,17 @@ function setup3DInputHandlers() {
   let startTime = 0;
   
   canvas.addEventListener("pointerdown", (e) => {
+    if (isCinematicMode) {
+      exitCinematicMode();
+      return;
+    }
     startX = e.clientX;
     startY = e.clientY;
     startTime = performance.now();
   });
   
   canvas.addEventListener("pointerup", (e) => {
+    if (isCinematicMode) return;
     const endX = e.clientX;
     const endY = e.clientY;
     const elapsed = performance.now() - startTime;
@@ -584,7 +609,8 @@ function updateTransition() {
   if (!isTransitioning) return;
   
   const elapsed = performance.now() - transitionStartTime;
-  const progress = Math.min(elapsed / transitionDuration, 1.0);
+  const currentDuration = isCinematicMode ? 1800 : transitionDuration;
+  const progress = Math.min(elapsed / currentDuration, 1.0);
   
   // Ease-in-out-quadratic lefutás a lágy indulásért és megállásért
   const easeProgress = progress < 0.5 
@@ -658,8 +684,12 @@ function updateTransition() {
     }
     
     // Visszakapcsoljuk az OrbitControls-t és szinkronizáljuk a belső szögeit
-    controls.enabled = true;
-    controls.update();
+    if (!isCinematicMode) {
+      controls.enabled = true;
+      controls.update();
+    } else {
+      controls.enabled = false;
+    }
     
     isTransitioning = false;
   }
@@ -679,14 +709,22 @@ function loop3D(timestamp) {
   
   let needsRender = false;
   
+  // Cinematic Mód frissítése képkockánként
+  if (isCinematicMode) {
+    updateCinematicMode(dt);
+    needsRender = true;
+  }
+  
   // 1. Elsőként frissítjük a kamera pozícióját az átmenetből (ha fut)
   if (isTransitioning) {
     updateTransition();
     needsRender = true;
   }
   
-  // 2. Frissítjük a kamerát az OrbitControls alapján (damping, manuális forgatás)
-  controls.update();
+  // 2. Frissítjük a kamerát az OrbitControls alapján (damping, manuális forgatás) - csak ha nem vagyunk mozi módban
+  if (!isCinematicMode) {
+    controls.update();
+  }
   
   // 3. Frissítjük az égitestek fizikai pozícióit/forgásait
   if (!isPaused) {
@@ -745,8 +783,8 @@ function update3D(dt) {
     const x = Math.cos(planet.currentAngle) * dist;
     const z = Math.sin(planet.currentAngle) * dist;
     
-    // A pivot csoportot mozgatjuk (amiben a döntött bolygótest van)
-    pm.pivot.position.set(x, 0, z);
+    // A fordítási csoportot mozgatjuk (amiben a döntött bolygótest és a címke van)
+    pm.translationGroup.position.set(x, 0, z);
   });
   
   // Ha ki van jelölve bolygó (és épp nincs folyamatban kameraváltás), a kamera célpontja és a kamera pozíciója követi őt
@@ -808,8 +846,9 @@ function updateLabels() {
       t = Math.max(0.0, Math.min(1.0, t));
     }
     
-    const pos2D = new THREE.Vector3(0, 0, r + 11 * offsetFactor);
-    const pos3D = new THREE.Vector3(0, r + 8 * offsetFactor, 0);
+    const extraOffset = planet.id === "sun" ? 10 : 0;
+    const pos2D = new THREE.Vector3(0, 0, r + (11 + extraOffset) * offsetFactor);
+    const pos3D = new THREE.Vector3(0, r + (8 + extraOffset) * offsetFactor, 0);
     const targetLocalPos = new THREE.Vector3().lerpVectors(pos2D, pos3D, t);
     
     // Pozíció beállítása közvetlenül másolással a tökéletes ugrásmentes követésért és nulla lagért!
@@ -893,6 +932,194 @@ function changeViewMode(mode) {
   
   // Kamera és bevilágítás (Emissive) buttery smooth átmenetének indítása
   focusCameraOnSelected();
+}
+
+// ==============================================================================
+// CINEMATIC MÓD (MOZISZERŰ AUTOMATA UTAZÁS) FÜGGVÉNYEK
+// ==============================================================================
+
+function toggleCinematicMode() {
+  if (isCinematicMode) {
+    exitCinematicMode();
+  } else {
+    enterCinematicMode();
+  }
+}
+
+function enterCinematicMode() {
+  // Eredeti állapot elmentése a visszaállításhoz
+  originalViewModeBeforeCinematic = currentViewMode;
+  originalSelectedPlanetBeforeCinematic = selectedPlanet ? selectedPlanet.id : null;
+  originalShowOrbits = showOrbits;
+  originalShowLabels = showLabels;
+
+  isCinematicMode = true;
+  cinematicPlanetIndex = 0;
+  cinematicTimer = 0;
+  cinematicAngle = 0;
+
+  // Bezárjuk a sidebarokat a tiszta moziélményért
+  closeAllSidebars();
+
+  // Elrejtjük a kezelőfelületet CSS-sel
+  const appContainer = document.getElementById("app-container");
+  if (appContainer) appContainer.classList.add("cinematic-active");
+
+  // Biztosítjuk, hogy a pályavonalak és feliratok láthatóak legyenek a látványosság kedvéért
+  toggleOrbits(true);
+  const toggleOrbitsCb = document.getElementById("toggle-orbits");
+  if (toggleOrbitsCb) {
+    toggleOrbitsCb.checked = true;
+    toggleOrbitsCb.parentElement.classList.add("active");
+  }
+
+  toggleLabels(true);
+  const toggleLabelsCb = document.getElementById("toggle-labels");
+  if (toggleLabelsCb) {
+    toggleLabelsCb.checked = true;
+    toggleLabelsCb.parentElement.classList.add("active");
+  }
+
+  // 3D nézetbe lépünk
+  changeViewMode("3d");
+
+  // Megjelenítjük a cinematic overlayt
+  const overlay = document.getElementById("cinematic-overlay");
+  if (overlay) overlay.style.display = "flex";
+
+  // Kiválasztjuk az első égitestet
+  cinematicSelectCurrent();
+}
+
+function exitCinematicMode() {
+  if (!isCinematicMode) return;
+  isCinematicMode = false;
+
+  // Visszahozzuk a kezelőfelületet
+  const appContainer = document.getElementById("app-container");
+  if (appContainer) appContainer.classList.remove("cinematic-active");
+
+  // Elrejtjük a cinematic overlayt
+  const overlay = document.getElementById("cinematic-overlay");
+  if (overlay) overlay.style.display = "none";
+
+  // Visszaállítjuk a beállításokat az eredeti értékekre
+  toggleOrbits(originalShowOrbits);
+  const toggleOrbitsCb = document.getElementById("toggle-orbits");
+  if (toggleOrbitsCb) {
+    toggleOrbitsCb.checked = originalShowOrbits;
+    toggleOrbitsCb.parentElement.classList.toggle("active", originalShowOrbits);
+  }
+
+  toggleLabels(originalShowLabels);
+  const toggleLabelsCb = document.getElementById("toggle-labels");
+  if (toggleLabelsCb) {
+    toggleLabelsCb.checked = originalShowLabels;
+    toggleLabelsCb.parentElement.classList.toggle("active", originalShowLabels);
+  }
+
+  // Visszaállítjuk a nézetmódot
+  changeViewMode(originalViewModeBeforeCinematic);
+
+  // Visszaállítjuk a fókuszált bolygót
+  if (originalSelectedPlanetBeforeCinematic) {
+    selectPlanet(originalSelectedPlanetBeforeCinematic);
+  } else {
+    selectedPlanet = null;
+  }
+}
+
+function cinematicSelectCurrent() {
+  if (!isCinematicMode) return;
+  
+  const planetId = cinematicSequence[cinematicPlanetIndex];
+  
+  // Bolygó kiválasztása (ez elindítja a 1.8 másodperces kamerarepülést is)
+  selectPlanet(planetId);
+
+  // Overlay feliratok frissítése
+  const planet = planetsData.find(p => p.id === planetId);
+  if (planet) {
+    const titleEl = document.getElementById("cinematic-title");
+    const factEl = document.getElementById("cinematic-fact");
+    
+    if (titleEl) titleEl.innerText = planet.name;
+    if (factEl) factEl.innerText = planet.details.summary;
+  }
+
+  // Időzítők nullázása
+  cinematicTimer = 0;
+  const progressFill = document.getElementById("cinematic-progress-fill");
+  if (progressFill) progressFill.style.width = "0%";
+}
+
+function updateCinematicMode(dt) {
+  if (!isCinematicMode || !selectedPlanet) return;
+
+  cinematicTimer += dt;
+  const currentDuration = 6.0; // 6 másodperc égitestenként (10 * 6s = 60s)
+  
+  // Progress bar frissítése
+  const progressPercent = Math.min((cinematicTimer / currentDuration) * 100, 100);
+  const progressFill = document.getElementById("cinematic-progress-fill");
+  if (progressFill) progressFill.style.width = progressPercent + "%";
+
+  // Ha letelt az idő, ugrás a következő bolygóra
+  if (cinematicTimer >= currentDuration) {
+    cinematicPlanetIndex++;
+    if (cinematicPlanetIndex >= cinematicSequence.length) {
+      // Végigértünk a bemutatón, kilépünk
+      exitCinematicMode();
+      return;
+    }
+    cinematicSelectCurrent();
+    return;
+  }
+
+  // Csak akkor pásztázunk, ha a kamera már odaért a bolygóhoz (a transition lefutott)
+  if (!isTransitioning) {
+    // Lassú, folyamatos pásztázó és keringő kamera-mozgás
+    const speed = 0.12; // szögsebesség rad/sec
+    cinematicAngle += dt * speed;
+
+    const pm = planetMeshes[selectedPlanet.id];
+    if (pm) {
+      const liveTargetPos = new THREE.Vector3();
+      pm.mesh.getWorldPosition(liveTargetPos);
+      
+      const r = getRenderRadius3D(selectedPlanet);
+      let focusDistance = selectedPlanet.id === "sun" ? 180 : r * 4.5 + 30;
+      
+      // Dinamikus látvány: bolygóspecifikus távolságok és lassú bobbing polárszögben (phi)
+      let basePhi = 1.15; // enyhén döntött sík
+      let phiAmplitude = 0.12; // függőleges kilengés
+      
+      if (selectedPlanet.id === "saturn" || selectedPlanet.id === "uranus") {
+        // Gyűrűs bolygóknál laposabb dőlés, hogy a gyűrűsík szépen kirajzolódjon
+        basePhi = 1.25;
+        phiAmplitude = 0.08;
+      } else if (selectedPlanet.id === "sun") {
+        basePhi = 1.05;
+        phiAmplitude = 0.15;
+      }
+      
+      // Szinuszos fel-le lebegő mozgás a polárszögben
+      const phi = basePhi + Math.sin(cinematicTimer * 0.4) * phiAmplitude;
+      const theta = cinematicAngle;
+
+      const currentSpherical = new THREE.Spherical(focusDistance, phi, theta);
+      currentSpherical.makeSafe();
+
+      const offset = new THREE.Vector3().setFromSpherical(currentSpherical);
+      
+      // Kamera pozícionálása
+      controls.target.copy(liveTargetPos);
+      camera.position.copy(controls.target).add(offset);
+      camera.lookAt(controls.target);
+      
+      forceRenderFrame = true;
+    }
+  }
 }
 
 // 2D kamera-lezárások beállítása

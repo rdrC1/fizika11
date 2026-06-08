@@ -86,9 +86,10 @@ body {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: var(--sidebar-width) 1fr var(--sidebar-width);
   grid-template-rows: 1fr;
   z-index: 2;
+  transition: grid-template-columns 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Header Styling */
@@ -808,6 +809,7 @@ header {
 /* Mobile Sidebar Toggle Button */
 .mobile-sidebar-toggle {
   display: none;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
 }
 
 /* UI responsive properties and overrides */
@@ -995,5 +997,168 @@ header {
   
   .mobile-sidebar-toggle {
     bottom: calc(120px + env(safe-area-inset-bottom)); /* Push toggles up slightly to clear the multi-line bottom control box */
+  }
+}
+
+/* Cinematic Mód stílusok */
+.app-container.cinematic-active {
+  grid-template-columns: 0px 1fr 0px;
+}
+
+.app-container.cinematic-active .sidebar {
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border: none;
+}
+
+.app-container.cinematic-active .sidebar-left {
+  transform: translateX(-100%);
+}
+
+.app-container.cinematic-active .sidebar-right {
+  transform: translateX(100%);
+}
+
+/* Hide normal controls in cinematic mode */
+.app-container.cinematic-active .canvas-floating-controls {
+  transform: translate(-50%, 200px) scale(0.9);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-container.cinematic-active .mobile-sidebar-toggle {
+  transform: translateY(200px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Cinematic Overlay */
+.cinematic-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 99;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 30px;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.app-container.cinematic-active .cinematic-overlay {
+  opacity: 1;
+}
+
+/* Exit Button - Glassmorphism */
+.btn-exit-cinematic {
+  align-self: flex-end;
+  pointer-events: auto;
+  background: rgba(10, 10, 25, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--text-primary);
+  padding: 10px 20px;
+  border-radius: 30px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  transform: translateY(-20px);
+}
+
+.app-container.cinematic-active .btn-exit-cinematic {
+  transform: translateY(0);
+}
+
+.btn-exit-cinematic:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 25px rgba(255, 255, 255, 0.1);
+}
+
+/* Bottom Caption Area */
+.cinematic-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(to top, rgba(3, 3, 12, 0.95) 0%, rgba(3, 3, 12, 0.7) 60%, transparent 100%);
+  padding: 50px 40px 40px 40px;
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transform: translateY(20px);
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-container.cinematic-active .cinematic-caption {
+  transform: translateY(0);
+}
+
+.cinematic-planet-title {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #ffffff 0%, var(--accent-color) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 20px rgba(255,255,255,0.1);
+}
+
+.cinematic-planet-fact {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-width: 600px;
+}
+
+/* Progress bar inside caption */
+.cinematic-progress-bar {
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 1px;
+  overflow: hidden;
+  margin-bottom: 15px;
+}
+
+.cinematic-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-color) 0%, #aae0ec 100%);
+  box-shadow: 0 0 8px var(--accent-glow);
+  transition: width 0.1s linear;
+}
+
+/* Adjustments for mobile viewports */
+@media (max-width: 768px) {
+  .cinematic-caption {
+    padding: 30px 20px 20px 20px;
+  }
+  
+  .cinematic-planet-title {
+    font-size: 1.6rem;
+  }
+  
+  .cinematic-planet-fact {
+    font-size: 0.85rem;
+  }
+  
+  .btn-exit-cinematic {
+    padding: 8px 16px;
+    font-size: 0.75rem;
   }
 }
