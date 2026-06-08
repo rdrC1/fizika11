@@ -566,9 +566,8 @@ function focusCameraOnSelected() {
   const minAllowed = selectedPlanet.id === "sun" ? 45 : radius * 1.5 + 8;
   controls.minDistance = minAllowed;
   
-  // Mobilos aspect ratio korrekció a zoomhoz (ha aspect < 1, közelebb visszük a kamerát)
-  const aspectFactor = camera.aspect < 1 ? Math.max(0.5, camera.aspect) : 1.0;
-  const focusDistance = (selectedPlanet.id === "sun" ? 180 : radius * 4.5 + 30) * aspectFactor;
+  // Mobilos aspect ratio korrekció a zoomhoz (törölve a belógás és clipping elkerülésére)
+  const focusDistance = selectedPlanet.id === "sun" ? 180 : radius * 4.5 + 30;
   
   // Célpozíció relatív eltolásának kiszámítása nézetmód alapján
   if (isCinematicMode) {
@@ -1222,7 +1221,7 @@ function cinematicSelectCurrent() {
     const factEl = document.getElementById("cinematic-fact");
     
     if (titleEl) titleEl.innerText = planet.name;
-    if (factEl) factEl.innerText = planet.details.summary;
+    if (factEl) factEl.innerText = planet.details.facts[0];
   }
 
   // Időzítők nullázása
@@ -1236,7 +1235,7 @@ function updateCinematicMode(dt) {
   if (!isCinematicMode || !selectedPlanet) return;
 
   cinematicTimer += dt;
-  const currentDuration = 24.0; // 24 másodperc égitestenként (10 * 24s = 240s)
+  const currentDuration = 12.0; // 12 másodperc égitestenként a gyorsabb váltásért
   
   // Progress bar frissítése
   const progressPercent = Math.min((cinematicTimer / currentDuration) * 100, 100);
@@ -1271,9 +1270,8 @@ function updateCinematicMode(dt) {
       pm.mesh.getWorldPosition(liveTargetPos);
       
       const r = getRenderRadius3D(selectedPlanet);
-      // Mobilos aspect ratio korrekció a cinematic zoomhoz is (ha aspect < 1, közelebb visszük a kamerát)
-      const aspectFactor = camera.aspect < 1 ? Math.max(0.5, camera.aspect) : 1.0;
-      let focusDistance = (selectedPlanet.id === "sun" ? 180 : r * 4.5 + 30) * aspectFactor;
+      // Mobilos aspect ratio korrekció a cinematic zoomhoz is (törölve a stabil távolságért)
+      let focusDistance = selectedPlanet.id === "sun" ? 180 : r * 4.5 + 30;
       
       // Dinamikus látvány: bolygóspecifikus távolságok és lassú bobbing polárszögben (phi)
       let basePhi = 1.15; // enyhén döntött sík
