@@ -993,7 +993,7 @@ header {
   .mobile-sidebar-toggle {
     display: flex;
     position: absolute;
-    bottom: calc(76px + env(safe-area-inset-bottom));
+    bottom: calc(90px + env(safe-area-inset-bottom));
     z-index: 10;
     background: var(--bg-glass);
     border: 1px solid var(--border-glass);
@@ -1068,7 +1068,7 @@ header {
   }
   
   .mobile-sidebar-toggle {
-    bottom: calc(76px + env(safe-area-inset-bottom));
+    bottom: calc(90px + env(safe-area-inset-bottom));
   }
 }
 
