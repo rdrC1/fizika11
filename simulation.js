@@ -1136,11 +1136,11 @@ function enterCinematicMode() {
     toggleOrbitsCb.parentElement.classList.add("active");
   }
 
-  toggleLabels(true);
+  toggleLabels(false);
   const toggleLabelsCb = document.getElementById("toggle-labels");
   if (toggleLabelsCb) {
-    toggleLabelsCb.checked = true;
-    toggleLabelsCb.parentElement.classList.add("active");
+    toggleLabelsCb.checked = false;
+    toggleLabelsCb.parentElement.classList.remove("active");
   }
 
   // 3D nézetbe lépünk
